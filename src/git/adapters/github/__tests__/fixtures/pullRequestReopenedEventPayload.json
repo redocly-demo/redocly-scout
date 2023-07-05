@@ -1,0 +1,22 @@
+{
+  "action": "reopened",
+  "repository": {
+    "owner": {
+      "login": "John"
+    },
+    "name": "repo-name",
+    "git_url": "git://github.com/John/repo-name",
+    "default_branch": "main"
+  },
+  "number": 1,
+  "pull_request": {
+    "number": 1,
+    "head": {
+      "ref": "chore/test",
+      "sha": "dd2c301ac65043128a66fb5b657feebf83778e8048f3af2be80bd20f27df8786"
+    }
+  },
+  "installation": {
+    "id": 37070315
+  }
+}

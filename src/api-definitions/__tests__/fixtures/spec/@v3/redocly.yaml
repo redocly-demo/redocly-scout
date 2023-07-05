@@ -1,0 +1,6 @@
+apis:
+  petstore:
+    root: ./petstore.yaml
+    type: openapi
+    metadata:
+      owner: redocly

@@ -1,0 +1,179 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
+import { TasksService } from '../tasks/tasks.service';
+import { ConfigService } from '@nestjs/config';
+import { ConfigSchema } from '../config';
+import { ScoutJob } from './types';
+import { GitService } from '../git/git.service';
+import fs from 'fs';
+import { RemotesService } from '../remotes/remotes.service';
+import path from 'path';
+import { ContentSource } from '../git/adapters/types';
+import { ApiDefinitionsService } from '../api-definitions/api-definitions.service';
+import { DefinitionsValidationService } from '../api-definitions/definitions-validation.service';
+import { HealthService } from '../healthcheck/health.service';
+
+const HANDLE_JOB_INTERVAL = 5 * 1000; // 5 sec
+const HEALTH_JOB_INTERVAL = 5 * 60 * 1000; // 5 min
+
+@Injectable()
+export class JobsService {
+  private readonly logger = new Logger(JobsService.name);
+  private readonly dataFolder: string;
+  private readonly apiFolder: string;
+  private readonly maxConcurrentJobs: number;
+  private readonly activeJobs: Map<string, any>;
+
+  constructor(
+    private readonly config: ConfigService<ConfigSchema>,
+    private readonly tasksService: TasksService,
+    private readonly healthService: HealthService,
+    private readonly gitService: GitService,
+    private readonly remotesService: RemotesService,
+    private readonly apiDefinitionsService: ApiDefinitionsService,
+    private readonly definitionsValidationService: DefinitionsValidationService,
+  ) {
+    this.dataFolder = this.config.getOrThrow('DATA_FOLDER');
+    this.maxConcurrentJobs = this.config.getOrThrow('MAX_CONCURRENT_JOBS');
+    this.apiFolder = this.config.getOrThrow('API_FOLDER');
+    this.activeJobs = new Map<string, ScoutJob>();
+  }
+
+  // TODO: we could move to dynamic intervals later
+  @Interval(HANDLE_JOB_INTERVAL)
+  async pollJob() {
+    if (this.activeJobs.size >= this.maxConcurrentJobs) {
+      this.logger.warn(
+        { activeJobs: this.activeJobs.size },
+        'Max concurrent jobs limit reached',
+      );
+
+      return;
+    }
+
+    const job = await this.tasksService.startTask();
+
+    if (!job) {
+      return;
+    }
+
+    try {
+      this.logger.log({ jobId: job.id, jobType: job.type }, 'Starting a job');
+      this.activeJobs.set(job.id, job);
+      await this.handleJob(job);
+      await this.tasksService.updateStatus({ id: job.id, status: 'COMPLETED' });
+      this.logger.log({ jobId: job.id, jobType: job.type }, 'Job completed');
+    } catch (err) {
+      await this.tasksService.updateStatus({ id: job.id, status: 'FAILED' });
+      this.logger.error(
+        { jobId: job.id, jobType: job.type, err },
+        'Job failed',
+      );
+    } finally {
+      this.activeJobs.delete(job.id);
+    }
+  }
+
+  @Interval(HEALTH_JOB_INTERVAL)
+  async updateScoutHealthStatus() {
+    try {
+      await this.healthService.report(this.activeJobs.size);
+    } catch (err) {
+      this.logger.error({ err }, 'Failed to update Scout health status');
+    }
+  }
+
+  async handleJob(job: ScoutJob): Promise<void> {
+    switch (job.type) {
+      case 'PROCESS_GIT_REPO':
+        return this.handleProcessGitRepositoryJob(job);
+      case 'UPDATE_STATUS':
+        return this.handleUpdateStatusJob(job);
+      default:
+        throw Error(`Unknown job type ${job.type}`);
+    }
+  }
+
+  async handleProcessGitRepositoryJob(job: ScoutJob) {
+    const sourceDetails = this.convertToContentSource(job);
+    const jobWorkDir = this.getJobWorkDir(job, this.dataFolder);
+    await this.gitService.checkout(sourceDetails, job.commitSha, jobWorkDir);
+    const commitDetails = await this.gitService.getCommitDetails(
+      job.commitSha,
+      sourceDetails,
+    );
+
+    try {
+      const discoveredDefinitions =
+        this.apiDefinitionsService.discoverApiDefinitions(
+          jobWorkDir,
+          this.apiFolder,
+        );
+
+      const validationResults =
+        await this.definitionsValidationService.validate(discoveredDefinitions);
+
+      const validDefinitions = validationResults
+        .filter(({ result }) => result.isValid)
+        .map((validationResult) => validationResult.definition);
+
+      const uploadTargets = this.apiDefinitionsService.convertToUploadTargets(
+        validDefinitions,
+        jobWorkDir,
+      );
+
+      await this.remotesService.pushUploadTargets(
+        uploadTargets,
+        job,
+        commitDetails,
+      );
+      await this.definitionsValidationService.publishValidationResults(
+        validationResults,
+        job,
+        jobWorkDir,
+      );
+    } finally {
+      this.logger.debug({ jobWorkDir, jobId: job.id }, 'Clean up job workdir');
+      fs.rmSync(jobWorkDir, { recursive: true, force: true });
+    }
+  }
+
+  async handleUpdateStatusJob(job: ScoutJob) {
+    const { commitSha, checks } = job;
+    if (!checks) {
+      this.logger.warn({ jobId: job.id }, 'No checks in job');
+      return;
+    }
+    const sourceDetails = this.convertToContentSource(job);
+    await this.gitService.upsertCommitStatuses(
+      commitSha,
+      checks,
+      sourceDetails,
+    );
+  }
+
+  private getJobWorkDir(job: ScoutJob, rootPath: string): string {
+    const jobWorkDir = path.join(
+      rootPath,
+      job.namespaceId,
+      job.repositoryId,
+      job.commitSha,
+      job.id,
+    );
+
+    if (!fs.existsSync(jobWorkDir)) {
+      fs.mkdirSync(jobWorkDir, { recursive: true });
+    }
+
+    return jobWorkDir;
+  }
+
+  private convertToContentSource(job: ScoutJob): ContentSource {
+    return {
+      providerType: job.providerType,
+      namespaceId: job.namespaceId,
+      repositoryId: job.repositoryId,
+      branchName: job.branch,
+    };
+  }
+}
