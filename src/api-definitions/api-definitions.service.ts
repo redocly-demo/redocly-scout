@@ -60,7 +60,12 @@ export class ApiDefinitionsService {
         const path = definitionFolder.split('@')[0] || '';
         if (this.isRootFolder(relative(rootPath, path))) continue;
 
-        const target = this.convertToUploadTarget(definition, path, 'folder');
+        const target = this.convertToUploadTarget(
+          definition,
+          path,
+          'folder',
+          true,
+        );
         uploadTargets.set(path, target);
       } else if (this.isMultiDefinitionsFolder(definitionFolder, definitions)) {
         const path = definition.path;
@@ -113,12 +118,11 @@ export class ApiDefinitionsService {
 
     for (const api of apis) {
       const configApi = config?.apis?.[api];
-      const metadata = configApi?.metadata;
-      if ((metadata?.owner || metadata?.team) && configApi?.root) {
+      if (configApi?.metadata && configApi?.root) {
         definitions.push({
           path: join(dirname(configPath), configApi.root),
           title: api,
-          metadata,
+          metadata: configApi.metadata,
         });
       }
     }
@@ -134,11 +138,7 @@ export class ApiDefinitionsService {
     const isOpenApi = Boolean(definition?.openapi || definition?.swagger);
     const info = definition?.info;
 
-    if (
-      isOpenApi &&
-      (info?.['x-metadata']?.owner || info?.['x-metadata']?.team) &&
-      info?.title
-    ) {
+    if (isOpenApi && info?.['x-metadata'] && info?.title) {
       return {
         path: definitionFilePath,
         title: info.title,
@@ -152,12 +152,14 @@ export class ApiDefinitionsService {
     definition: DiscoveredDefinition,
     path: string,
     type: UploadTargetType,
+    isVersioned = false,
   ): DefinitionUploadTarget {
     return {
       path: path.replace(/\/$/, ''),
       type,
       metadata: definition.metadata,
       title: definition.title,
+      isVersioned,
     };
   }
 

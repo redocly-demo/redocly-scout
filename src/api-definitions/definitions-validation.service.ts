@@ -114,10 +114,25 @@ export class DefinitionsValidationService {
   ): Promise<ValidationResult> {
     const url = `/orgs/${this.orgId}/portals/${this.portalId}/scout/metadata/validate`;
 
-    const validationResult = this.httpService
-      .post<ValidationResult>(url, metadata)
-      .pipe(map((res) => res.data));
+    const validationResult = await firstValueFrom(
+      this.httpService
+        .post<ValidationResult>(url, metadata)
+        .pipe(map((res) => res.data)),
+    );
 
-    return firstValueFrom(validationResult);
+    const team = DefinitionsValidationService.getTeamFromMetadata(metadata);
+
+    if (!team && validationResult.isValid) {
+      return {
+        isValid: false,
+        errors: [{ message: '"team" attribute is required in the x-metadata' }],
+      };
+    }
+
+    return validationResult;
+  }
+
+  static getTeamFromMetadata(metadata: ApiDefinitionMetadata) {
+    return metadata.team || metadata.owner;
   }
 }

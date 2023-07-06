@@ -34,6 +34,7 @@ export type DefinitionUploadTarget = {
   type: UploadTargetType;
   title: string;
   metadata: ApiDefinitionMetadata;
+  isVersioned: boolean;
 };
 
 type ValidationError = {

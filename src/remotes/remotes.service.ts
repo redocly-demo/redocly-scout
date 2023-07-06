@@ -15,6 +15,7 @@ import { join } from 'path';
 import { getUploadTargetFilesMap } from './push-files-helpers';
 import { DefinitionUploadTarget } from '../api-definitions/types';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
+import { DefinitionsValidationService } from '../api-definitions/definitions-validation.service';
 
 @Injectable()
 export class RemotesService {
@@ -95,12 +96,20 @@ export class RemotesService {
     definition: DefinitionUploadTarget,
     job: ScoutJob,
   ) {
+    const team = DefinitionsValidationService.getTeamFromMetadata(
+      definition.metadata,
+    );
+
+    if (!team) {
+      throw new Error("Can't get team from definition metadata");
+    }
+
     return join(
       apiFolder,
-      definition.metadata.owner || definition.metadata.team || '',
+      team,
       job.repositoryId,
       definition.title,
-      '@latest',
+      definition.isVersioned ? '' : '@latest',
     ).replace(/^\//, '');
   }
 }
