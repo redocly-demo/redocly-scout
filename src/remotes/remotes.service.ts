@@ -51,7 +51,7 @@ export class RemotesService {
       const remoteContentUpdate: RemoteContentUpdate = {
         jobId: job.id,
         files,
-        replace: false,
+        replace: true,
         commit,
       };
 

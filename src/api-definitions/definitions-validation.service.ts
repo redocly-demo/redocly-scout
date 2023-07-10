@@ -81,6 +81,32 @@ export class DefinitionsValidationService {
     );
   }
 
+  async publishValidationStartedStatus(job: ScoutJob) {
+    const { repositoryId, namespaceId, branch, commitSha } = job;
+    const sourceDetails = {
+      providerType: job.providerType,
+      namespaceId: namespaceId,
+      repositoryId: repositoryId,
+      branchName: branch,
+    };
+
+    await this.gitService.upsertCommitStatuses(
+      job.commitSha,
+      [
+        {
+          status: 'IN_PROGRESS',
+          name: 'Redocly Scout',
+          description: 'Metadata validation started',
+        },
+      ],
+      sourceDetails,
+    );
+    this.logger.debug(
+      { jobId: job.id, namespaceId, repositoryId, branch, commitSha },
+      'Metadata validation started',
+    );
+  }
+
   private getValidationSummary(
     results: DefinitionValidationResult[],
     commitSha: string,

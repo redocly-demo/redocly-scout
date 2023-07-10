@@ -98,10 +98,6 @@ export class JobsService {
     const sourceDetails = this.convertToContentSource(job);
     const jobWorkDir = this.getJobWorkDir(job, this.dataFolder);
     await this.gitService.checkout(sourceDetails, job.commitSha, jobWorkDir);
-    const commitDetails = await this.gitService.getCommitDetails(
-      job.commitSha,
-      sourceDetails,
-    );
 
     try {
       const discoveredDefinitions =
@@ -110,8 +106,18 @@ export class JobsService {
           this.apiFolder,
         );
 
+      await this.definitionsValidationService.publishValidationStartedStatus(
+        job,
+      );
+
       const validationResults =
         await this.definitionsValidationService.validate(discoveredDefinitions);
+
+      await this.definitionsValidationService.publishValidationResults(
+        validationResults,
+        job,
+        jobWorkDir,
+      );
 
       const validDefinitions = validationResults
         .filter(({ result }) => result.isValid)
@@ -122,15 +128,15 @@ export class JobsService {
         jobWorkDir,
       );
 
+      const commitDetails = await this.gitService.getCommitDetails(
+        job.commitSha,
+        sourceDetails,
+      );
+
       await this.remotesService.pushUploadTargets(
         uploadTargets,
         job,
         commitDetails,
-      );
-      await this.definitionsValidationService.publishValidationResults(
-        validationResults,
-        job,
-        jobWorkDir,
       );
     } finally {
       this.logger.debug({ jobWorkDir, jobId: job.id }, 'Clean up job workdir');
