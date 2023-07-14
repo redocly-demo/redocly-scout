@@ -1,6 +1,6 @@
 import { Octokit } from 'octokit';
 import { ConfigService } from '@nestjs/config';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createAppAuth } from '@octokit/auth-app';
 
 import { ContentSource, GitAdapter } from '../types';
@@ -15,6 +15,8 @@ const GITHUB_CLOUD_API_URL = 'https://api.github.com';
 
 @Injectable()
 export class GitHubCloudClient implements GitAdapter {
+  protected logger = new Logger(GitHubCloudClient.name);
+
   constructor(
     @Inject('LRUCache')
     protected readonly cache: LRUCache<string, number>,
@@ -65,6 +67,7 @@ export class GitHubCloudClient implements GitAdapter {
         const key = this.getInstallationIdCacheKey(sourceDetails);
         this.cache.delete(key);
       }
+      this.logger.error({ err: e }, 'Could not fetch token');
       throw Error('Could not fetch token');
     }
   }
@@ -87,6 +90,7 @@ export class GitHubCloudClient implements GitAdapter {
 
       return response.data.id;
     } catch (e) {
+      this.logger.error({ err: e }, 'Could not fetch installationId');
       throw Error('Could not fetch installationId');
     }
   }

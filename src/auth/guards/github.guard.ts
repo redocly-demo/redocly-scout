@@ -20,23 +20,23 @@ export class GithubGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
 
     // get payload signature
-    const signature = request.header('x-hub-signature');
+    const signature = request.header('x-hub-signature-256');
 
     if (!signature) {
       throw new UnauthorizedException(
-        `This request doesn't contain a github signature`,
+        `The request doesn't contain a GitHub signature`,
       );
     }
 
     // generate digest using webhook secret and request payload
     const secret = this.config.getOrThrow('GITHUB_WEBHOOK_SECRET');
     const payload = JSON.stringify(request.body);
-    const hmac = createHmac('sha1', secret);
-    const digest = `sha1=${hmac.update(payload).digest('hex')}`;
+    const hmac = createHmac('sha256', secret);
+    const digest = `sha256=${hmac.update(payload).digest('hex')}`;
 
     if (signature !== digest) {
       throw new UnauthorizedException(
-        `Request body digest (${digest}) does not match ${signature}`,
+        `The request body digest does not match signature`,
       );
     }
 

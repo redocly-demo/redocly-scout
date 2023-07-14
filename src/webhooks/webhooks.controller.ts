@@ -27,16 +27,20 @@ export class WebhooksController {
     @Headers('x-github-event') webhookEvent: WebhookEventName,
   ): Promise<WebhookResponse> {
     const webhook = convertWebhookToGenericEvent(webhookEvent, webhookPayload);
-    if (!webhook || !shouldHandleWebhook(webhook)) {
+    if (!webhook) {
+      return { message: 'Unprocessable webhook payload', event: webhookEvent };
+    }
+
+    if (!shouldHandleWebhook(webhook)) {
       return {
-        detail:
-          'Skipped unprocessable event. Scout agent process only "push" event on the main branch and "pull_request" event with "opened", "reopened", "synchronize" action',
-        event: webhook?.type || webhookEvent,
+        message:
+          'Unprocessable webhook event. Scout process only "push" event on the main branch and "pull_request" event with "opened", "reopened", "synchronize" action',
+        event: webhook.type,
       };
     }
     try {
       const job = await this.tasksService.createProcessRepositoryTask(webhook);
-      return { detail: 'Job created', event: webhook.type, jobId: job.id };
+      return { message: 'Job created', event: webhook.type, jobId: job.id };
     } catch (e) {
       throw new InternalServerErrorException({
         detail: e.message,

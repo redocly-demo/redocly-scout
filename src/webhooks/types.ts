@@ -1,5 +1,5 @@
 export type WebhookResponse = {
-  detail: string;
+  message: string;
   event: string;
   jobId?: string;
 };

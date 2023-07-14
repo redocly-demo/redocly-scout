@@ -61,14 +61,21 @@ export class JobsService {
       this.logger.log({ jobId: job.id, jobType: job.type }, 'Starting a job');
       this.activeJobs.set(job.id, job);
       await this.handleJob(job);
-      await this.tasksService.updateStatus({ id: job.id, status: 'COMPLETED' });
-      this.logger.log({ jobId: job.id, jobType: job.type }, 'Job completed');
+      try {
+        this.logger.log({ jobId: job.id, jobType: job.type }, 'Job completed');
+        await this.tasksService.updateStatus({
+          id: job.id,
+          status: 'COMPLETED',
+        });
+      } catch (err) {
+        // Do not update job status to "FAILED" in case when job processed but status update failed
+      }
     } catch (err) {
-      await this.tasksService.updateStatus({ id: job.id, status: 'FAILED' });
       this.logger.error(
         { jobId: job.id, jobType: job.type, err },
         'Job failed',
       );
+      await this.tasksService.updateStatus({ id: job.id, status: 'FAILED' });
     } finally {
       this.activeJobs.delete(job.id);
     }
