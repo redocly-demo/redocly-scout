@@ -24,7 +24,7 @@ describe('convertWebhookToGenericEvent', () => {
           sha: 'dd2c301ac65043128a66fb5b657feebf83778e8048f3af2be80bd20f27df8786',
           message: 'Initial commit',
         },
-        mainBranchName: 'main',
+        isMainBranch: true,
       }),
     );
   });
@@ -47,7 +47,7 @@ describe('convertWebhookToGenericEvent', () => {
         commit: {
           sha: 'dd2c301ac65043128a66fb5b657feebf83778e8048f3af2be80bd20f27df8786',
         },
-        mainBranchName: 'main',
+        isMainBranch: false,
         prId: '1',
       }),
     );

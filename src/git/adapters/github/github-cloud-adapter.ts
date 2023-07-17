@@ -1,4 +1,5 @@
-import { Octokit } from 'octokit';
+import { Octokit, RequestError } from 'octokit';
+import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createAppAuth } from '@octokit/auth-app';
@@ -24,12 +25,24 @@ export class GitHubCloudClient implements GitAdapter {
   ) {}
 
   private getAppClient(): Octokit {
+    const appId = this.config.getOrThrow('GITHUB_APP_ID');
+    const privateKey = this.config.getOrThrow('GITHUB_PRIVATE_KEY');
+
+    this.logger.debug(
+      {
+        appId,
+        privateKey: !!privateKey,
+        privateKeySha256: privateKey && computePrivateKeySha256(privateKey),
+      },
+      'Creating app client',
+    );
+
     return new Octokit({
       baseUrl: this.getBaseApiUrl(),
       authStrategy: createAppAuth,
       auth: {
-        appId: this.config.getOrThrow('GITHUB_APP_ID'),
-        privateKey: this.config.getOrThrow('GITHUB_PRIVATE_KEY'),
+        appId,
+        privateKey,
       },
     });
   }
@@ -90,7 +103,20 @@ export class GitHubCloudClient implements GitAdapter {
 
       return response.data.id;
     } catch (e) {
-      this.logger.error({ err: e }, 'Could not fetch installationId');
+      const errorDetails =
+        e instanceof RequestError
+          ? {
+              githubMessage: e.message,
+              githubStatus: e.status,
+              githubResponse: e.response,
+              githubRequest: e.request,
+            }
+          : {};
+
+      this.logger.error(
+        { err: e, errorDetails },
+        'Could not fetch installationId',
+      );
       throw Error('Could not fetch installationId');
     }
   }
@@ -295,4 +321,12 @@ export class GitHubCloudClient implements GitAdapter {
   }: ContentSource): string {
     return `installationId--${namespaceId}--${repositoryId}`;
   }
+}
+
+function computePrivateKeySha256(pem: string) {
+  const key = crypto.createPublicKey({ format: 'pem', key: pem });
+  return crypto
+    .createHash('sha256')
+    .update(key.export({ type: 'spki', format: 'der' }))
+    .digest('base64');
 }
