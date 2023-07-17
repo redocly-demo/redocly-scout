@@ -179,6 +179,35 @@ export class GitHubCloudClient implements GitAdapter {
     };
   }
 
+  public async checkConnectivity(): Promise<boolean> {
+    const expectedStatus = 401;
+    const client = new Octokit({ baseUrl: this.getBaseApiUrl() });
+
+    const response = await client.rest.orgs
+      .list({ per_page: 1 })
+      .then((res) => ({
+        status: res.status,
+        url: res.url,
+      }))
+      .catch((e) => ({
+        status: e.errorDetails?.githubStatus,
+        url: e.errorDetails?.githubRequest?.url,
+      }));
+
+    this.logger.debug(
+      {
+        request: {
+          url: response.url,
+        },
+        expectedStatus,
+        receivedStatus: response.status,
+      },
+      'Checking GitHub connectivity',
+    );
+
+    return expectedStatus === response.status;
+  }
+
   public async upsertSummaryComment(
     text: string,
     sourceDetails: ContentSource,

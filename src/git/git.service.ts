@@ -1,15 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ContentSource } from './adapters/types';
+import { ContentSource, GitProvider } from './adapters/types';
 import { simpleGit } from 'simple-git';
 import { CommitCheck } from '../jobs/types';
 import { CommitDetails } from '../remotes/types';
 import { GitAdaptersFactory } from './adapters/git-adapters-factory';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
+import { ConfigService } from '@nestjs/config';
+import { ConfigSchema } from '../config';
 
 @Injectable()
 export class GitService {
   readonly logger = new Logger(GitService.name);
-  constructor(private readonly gitAdaptersFactory: GitAdaptersFactory) {}
+  constructor(
+    private readonly config: ConfigService<ConfigSchema>,
+    private readonly gitAdaptersFactory: GitAdaptersFactory,
+  ) {}
 
   getGit(baseDir: string) {
     return simpleGit({ maxConcurrentProcesses: 1, baseDir });
@@ -103,5 +108,13 @@ export class GitService {
       { commitSha, namespaceId, repositoryId, branchName, prId },
       'Validation summary published',
     );
+  }
+
+  public async checkConnectivity() {
+    const serverUrl = this.config.get('GITHUB_SERVER_URL');
+    const provider: GitProvider = serverUrl ? 'GITHUB_SERVER' : 'GITHUB_CLOUD';
+    const gitAdapter = this.gitAdaptersFactory.getAdapter(provider);
+
+    return await gitAdapter.checkConnectivity();
   }
 }

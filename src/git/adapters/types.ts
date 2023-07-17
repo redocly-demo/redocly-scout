@@ -42,4 +42,5 @@ export interface GitAdapter {
     commitSha: string,
     prId?: string,
   ): Promise<void>;
+  checkConnectivity(): Promise<boolean>;
 }

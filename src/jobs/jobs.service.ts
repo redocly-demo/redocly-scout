@@ -84,6 +84,7 @@ export class JobsService {
   @Interval(HEALTH_JOB_INTERVAL)
   async updateScoutHealthStatus() {
     try {
+      await this.gitService.checkConnectivity();
       await this.healthService.report(this.activeJobs.size);
     } catch (err) {
       this.logger.error({ err }, 'Failed to update Scout health status');
