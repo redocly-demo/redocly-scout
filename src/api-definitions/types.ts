@@ -5,11 +5,13 @@ export type RedoclyConfigApi = {
 
 export type RedoclyConfig = {
   apis?: Record<string, RedoclyConfigApi>;
+  metadata?: ApiDefinitionMetadata;
 };
 
 export type ApiDefinitionMetadata = {
   owner?: string;
   team?: string;
+  title?: string;
 };
 
 export type OpenApiDefinition = {

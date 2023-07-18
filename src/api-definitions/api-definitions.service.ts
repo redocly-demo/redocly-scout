@@ -67,6 +67,10 @@ export class ApiDefinitionsService {
           true,
         );
         uploadTargets.set(path, target);
+      } else if (definition.path.endsWith(REDOCLY_CONFIG_FILENAME)) {
+        const path = definitionFolder;
+        const target = this.convertToUploadTarget(definition, path, 'folder');
+        uploadTargets.set(path, target);
       } else if (this.isMultiDefinitionsFolder(definitionFolder, definitions)) {
         const path = definition.path;
         const target = this.convertToUploadTarget(definition, path, 'file');
@@ -78,7 +82,9 @@ export class ApiDefinitionsService {
       }
     }
 
-    return [...uploadTargets.values()];
+    return [...uploadTargets.values()].filter(
+      (target, _, targets) => !this.hasParentUploadTarget(target, targets),
+    );
   }
 
   private getFilesList(folderPath: string): string[] {
@@ -116,13 +122,27 @@ export class ApiDefinitionsService {
     const apis = Object.keys(config.apis || {});
     const definitions: DiscoveredDefinition[] = [];
 
+    if (config.metadata) {
+      const configFolder = this.isVersionedFolder(configPath)
+        ? configPath.split('@')[0] || ''
+        : dirname(configPath);
+
+      definitions.push({
+        path: configPath,
+        title: config.metadata.title || basename(configFolder),
+        metadata: config.metadata,
+      });
+    }
+
     for (const api of apis) {
       const configApi = config?.apis?.[api];
-      if (configApi?.metadata && configApi?.root) {
+      // try to get metadata from api level, otherwise check root metadata
+      const metadata = configApi?.metadata || config.metadata;
+      if (metadata && configApi?.root) {
         definitions.push({
           path: join(dirname(configPath), configApi.root),
           title: api,
-          metadata: configApi.metadata,
+          metadata,
         });
       }
     }
@@ -192,5 +212,14 @@ export class ApiDefinitionsService {
       );
       return;
     }
+  }
+
+  private hasParentUploadTarget(
+    target: DefinitionUploadTarget,
+    targets: DefinitionUploadTarget[],
+  ) {
+    return targets.some(
+      ({ path }) => target.path !== path && target.path.startsWith(path),
+    );
   }
 }

@@ -53,6 +53,30 @@ describe('ApiDefinitionsDiscoveryService', () => {
       expect(apiFiles).toEqual(expect.arrayContaining(expected));
       expect(apiFiles).toHaveLength(3);
     });
+
+    it('should discover api definitions with root metadata in redocly.yaml', () => {
+      const apiDocsPath = path.join(__dirname, 'fixtures');
+      //    └── petstore
+      //        ├── petstore.yaml # with metadata inside
+      //        └── redocly.yaml  # with metadata root metadata
+      const expected = [
+        {
+          path: `${apiDocsPath}/petstore/petstore.yaml`,
+          title: 'Petstore API',
+          metadata: { department: 'Business & Money', owner: 'redocly' },
+        },
+        {
+          path: `${apiDocsPath}/petstore/redocly.yaml`,
+          title: 'petstore',
+          metadata: { owner: 'redocly' },
+        },
+      ];
+
+      const apiFiles = service.discoverApiDefinitions(apiDocsPath, '/petstore');
+
+      expect(apiFiles).toEqual(expect.arrayContaining(expected));
+      expect(apiFiles).toHaveLength(2);
+    });
   });
 
   describe('convertToUploadTargets', () => {
@@ -143,6 +167,47 @@ describe('ApiDefinitionsDiscoveryService', () => {
         { path: '/specs/@v1/openapi.yaml' },
         { path: '/specs/@v2/openapi.yaml' },
         { path: '/specs/@v2/dogs/openapi.yaml' },
+      ] as DiscoveredDefinition[];
+
+      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+
+      expect(filesToPush).toEqual(
+        expect.arrayContaining([expect.objectContaining({ path: '/specs' })]),
+      );
+      expect(filesToPush).toHaveLength(1);
+    });
+
+    it('should push parent folder in case of versioned apis with root metadata in the redocly.yaml', () => {
+      const apiFiles = [
+        { path: '/specs/@v1/openapi.yaml', metadata: { team: 'teamA' } },
+        { path: '/specs/@v1/redocly.yaml', metadata: { team: 'teamB' } },
+      ] as DiscoveredDefinition[];
+
+      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+
+      expect(filesToPush).toEqual(
+        expect.arrayContaining([expect.objectContaining({ path: '/specs' })]),
+      );
+      expect(filesToPush).toHaveLength(1);
+    });
+
+    it('should push folder in case of redocly.yaml', () => {
+      const apiFiles = [
+        { path: '/specs/redocly.yaml' },
+      ] as DiscoveredDefinition[];
+
+      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+
+      expect(filesToPush).toEqual(
+        expect.arrayContaining([expect.objectContaining({ path: '/specs' })]),
+      );
+      expect(filesToPush).toHaveLength(1);
+    });
+
+    it('should push folder in case of redocly.yaml and neighborhood openapi definition', () => {
+      const apiFiles = [
+        { path: '/specs/openapi.yaml' },
+        { path: '/specs/redocly.yaml' },
       ] as DiscoveredDefinition[];
 
       const filesToPush = service.convertToUploadTargets(apiFiles, '');
