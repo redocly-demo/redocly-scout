@@ -1,2 +1,2 @@
 metadata:
-  owner: redocly
+  $ref: ./metadata.yaml

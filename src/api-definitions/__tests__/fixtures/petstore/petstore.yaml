@@ -4,5 +4,4 @@ info:
   description: API description in Markdown.
   version: 1.0.0
   x-metadata:
-    department: Business & Money
-    owner: redocly
+    $ref: ./metadata.yaml

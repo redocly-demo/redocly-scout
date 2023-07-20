@@ -12,6 +12,7 @@ export type ApiDefinitionMetadata = {
   owner?: string;
   team?: string;
   title?: string;
+  $ref?: string;
 };
 
 export type OpenApiDefinition = {

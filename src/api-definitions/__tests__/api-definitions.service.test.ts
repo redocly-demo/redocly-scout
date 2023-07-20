@@ -68,7 +68,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
         {
           path: `${apiDocsPath}/petstore/redocly.yaml`,
           title: 'petstore',
-          metadata: { owner: 'redocly' },
+          metadata: { department: 'Business & Money', owner: 'redocly' },
         },
       ];
 

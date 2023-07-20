@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  ApiDefinitionMetadata,
   DefinitionUploadTarget,
   DiscoveredDefinition,
   OpenApiDefinition,
@@ -121,28 +122,32 @@ export class ApiDefinitionsService {
 
     const apis = Object.keys(config.apis || {});
     const definitions: DiscoveredDefinition[] = [];
+    const rootMetadata = this.resolveMetadataRef(config.metadata, configPath);
 
-    if (config.metadata) {
+    if (rootMetadata) {
       const configFolder = this.isVersionedFolder(configPath)
         ? configPath.split('@')[0] || ''
         : dirname(configPath);
 
       definitions.push({
         path: configPath,
-        title: config.metadata.title || basename(configFolder),
-        metadata: config.metadata,
+        title: rootMetadata.title || basename(configFolder),
+        metadata: rootMetadata,
       });
     }
 
     for (const api of apis) {
       const configApi = config?.apis?.[api];
       // try to get metadata from api level, otherwise check root metadata
-      const metadata = configApi?.metadata || config.metadata;
-      if (metadata && configApi?.root) {
+      const apiMetadata = this.resolveMetadataRef(
+        configApi?.metadata || rootMetadata,
+        configPath,
+      );
+      if (apiMetadata && configApi?.root) {
         definitions.push({
           path: join(dirname(configPath), configApi.root),
           title: api,
-          metadata,
+          metadata: apiMetadata,
         });
       }
     }
@@ -157,12 +162,16 @@ export class ApiDefinitionsService {
       this.parseFileByPath<OpenApiDefinition>(definitionFilePath);
     const isOpenApi = Boolean(definition?.openapi || definition?.swagger);
     const info = definition?.info;
+    const metadata = this.resolveMetadataRef(
+      info?.['x-metadata'],
+      definitionFilePath,
+    );
 
-    if (isOpenApi && info?.['x-metadata'] && info?.title) {
+    if (isOpenApi && metadata && info?.title) {
       return {
         path: definitionFilePath,
         title: info.title,
-        metadata: info['x-metadata'],
+        metadata,
       };
     }
     return;
@@ -221,5 +230,19 @@ export class ApiDefinitionsService {
     return targets.some(
       ({ path }) => target.path !== path && target.path.startsWith(path),
     );
+  }
+
+  private resolveMetadataRef(
+    metadata: ApiDefinitionMetadata | undefined,
+    definitionPath: string,
+  ): ApiDefinitionMetadata | undefined {
+    if (metadata?.$ref) {
+      const refPath = join(dirname(definitionPath), metadata?.$ref);
+      const refMetadata = this.parseFileByPath<ApiDefinitionMetadata>(refPath);
+      // Handle nested refs
+      return this.resolveMetadataRef(refMetadata, refPath);
+    }
+
+    return metadata;
   }
 }
