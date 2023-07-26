@@ -11,6 +11,7 @@ const configSchema = z.object({
   REDOCLY_PORTAL_ID: z.string().trim(),
   PORTAL_APIS_FOLDER: z.string().trim().default('/'),
   DATA_FOLDER: z.string().trim(),
+  MOUNT_BRANCH_NAME: z.string().trim().default('main'),
   API_FOLDER: z.string().trim().default('/'),
   GITHUB_APP_ID: z.string().trim().optional(),
   GITHUB_APP_USER_ID: z.coerce.number().optional(),

@@ -24,6 +24,7 @@ export class RemotesService {
   private readonly portalId: string;
   private readonly portalApisFolder: string;
   private readonly autoMerge: boolean;
+  private readonly mountBranchName: string;
 
   constructor(
     private config: ConfigService<ConfigSchema>,
@@ -33,6 +34,7 @@ export class RemotesService {
     this.portalId = this.config.getOrThrow('REDOCLY_PORTAL_ID');
     this.portalApisFolder = this.config.getOrThrow('PORTAL_APIS_FOLDER');
     this.autoMerge = this.config.getOrThrow('AUTO_MERGE');
+    this.mountBranchName = this.config.get('MOUNT_BRANCH_NAME', 'main');
   }
 
   async pushUploadTargets(
@@ -43,7 +45,7 @@ export class RemotesService {
     const promises = uploadTargets.map(async (target) => {
       const remote = await this.upsertRemote({
         mountPath: this.getMountPath(this.portalApisFolder, target, job),
-        mountBranchName: job.branch,
+        mountBranchName: this.mountBranchName,
         type: 'CICD',
         autoMerge: this.autoMerge,
       });
