@@ -15,6 +15,7 @@ export class RedoclyHttpConfigService implements HttpModuleOptionsFactory {
       baseURL: this.config.getOrThrow('REDOCLY_API_URL'),
       headers: {
         Authorization: `Bearer ${this.config.getOrThrow('REDOCLY_API_KEY')}`,
+        'x-redocly-scout-version': this.config.getOrThrow('SCOUT_VERSION'),
       },
     };
   }

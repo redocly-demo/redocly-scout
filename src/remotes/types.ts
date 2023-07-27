@@ -22,6 +22,7 @@ export type CommitDetails = {
   repositoryId: string;
   branchName: string;
   message: string;
+  url: string;
   author: CommitAuthor;
 };
 

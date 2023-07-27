@@ -13,7 +13,7 @@ RUN npm install --omit=dev --frozen-lockfile
 
 COPY dist .
 
-ARG GIT_SHA
-ENV SCOUT_VERSION=$GIT_SHA
+ARG IMAGE_VERSION
+ENV SCOUT_VERSION=$IMAGE_VERSION
 
 CMD node /app/src/main.js

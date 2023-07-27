@@ -75,7 +75,14 @@ export class JobsService {
         { jobId: job.id, jobType: job.type, err },
         'Job failed',
       );
-      await this.tasksService.updateStatus({ id: job.id, status: 'FAILED' });
+      await this.tasksService.updateStatus({
+        id: job.id,
+        status: 'FAILED',
+        metadata: {
+          errorMessage: err.message,
+          errorStack: err.stack,
+        },
+      });
     } finally {
       this.activeJobs.delete(job.id);
     }

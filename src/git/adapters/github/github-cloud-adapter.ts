@@ -168,6 +168,7 @@ export class GitHubCloudClient implements GitAdapter {
 
     return {
       message: data.commit.message,
+      url: data.html_url,
       namespaceId: sourceDetails.namespaceId,
       repositoryId: sourceDetails.repositoryId,
       branchName: sourceDetails.branchName,
