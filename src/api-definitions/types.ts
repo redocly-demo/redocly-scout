@@ -40,7 +40,7 @@ export type DefinitionUploadTarget = {
   isVersioned: boolean;
 };
 
-type ValidationError = {
+export type ValidationError = {
   message: string;
 };
 

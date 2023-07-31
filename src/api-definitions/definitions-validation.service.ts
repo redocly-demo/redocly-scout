@@ -3,6 +3,7 @@ import {
   ApiDefinitionMetadata,
   DefinitionValidationResult,
   DiscoveredDefinition,
+  ValidationError,
   ValidationResult,
   ValidationSummary,
 } from './types';
@@ -14,6 +15,7 @@ import { relative } from 'path';
 import { ScoutJob } from '../jobs/types';
 import { GitService } from '../git/git.service';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
+import { getValueByPath } from '../remotes/get-value-by-path';
 
 @Injectable()
 export class DefinitionsValidationService {
@@ -140,25 +142,60 @@ export class DefinitionsValidationService {
   ): Promise<ValidationResult> {
     const url = `/orgs/${this.orgId}/portals/${this.portalId}/scout/metadata/validate`;
 
-    const validationResult = await firstValueFrom(
+    const schemaValidationResult = await firstValueFrom(
       this.httpService
         .post<ValidationResult>(url, metadata)
         .pipe(map((res) => res.data)),
     );
 
-    const team = DefinitionsValidationService.getTeamFromMetadata(metadata);
+    const metadataVariablesValidationResult =
+      this.validateMountPathMetadataVariables(metadata);
 
-    if (!team && validationResult.isValid) {
-      return {
-        isValid: false,
-        errors: [{ message: '"team" attribute is required in the x-metadata' }],
-      };
+    let isValid = true;
+    const errors: ValidationError[] = [];
+
+    if (!schemaValidationResult.isValid) {
+      isValid = false;
+      errors.push(...(schemaValidationResult.errors || []));
     }
 
-    return validationResult;
+    if (!metadataVariablesValidationResult.isValid) {
+      isValid = false;
+      errors.push(...(metadataVariablesValidationResult.errors || []));
+    }
+
+    return { isValid, errors };
   }
 
-  static getTeamFromMetadata(metadata: ApiDefinitionMetadata) {
-    return metadata.team || metadata.owner;
+  private validateMountPathMetadataVariables(
+    metadata: ApiDefinitionMetadata,
+  ): ValidationResult {
+    const variablesMatches = this.config
+      .getOrThrow('REDOCLY_DEST_FOLDER_PATH')
+      .matchAll(/{metadata\.(.+?)}/g);
+
+    const variables = [...variablesMatches].map(([_, field]) => ({
+      title: field,
+      value: getValueByPath(field, metadata),
+    }));
+
+    const emptyVariables = variables.filter(
+      ({ value }) => value === null || value === undefined,
+    );
+    const invalidVariables = variables.filter(
+      ({ value }) => typeof value === 'object' && value !== null,
+    );
+
+    return {
+      isValid: ![...emptyVariables, ...invalidVariables].length,
+      errors: [
+        ...emptyVariables.map(({ title }) => ({
+          message: `"${title}" metadata attribute is required`,
+        })),
+        ...invalidVariables.map(({ title }) => ({
+          message: `"${title}" metadata attribute should not be an object`,
+        })),
+      ],
+    };
   }
 }

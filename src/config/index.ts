@@ -9,7 +9,13 @@ const configSchema = z.object({
   REDOCLY_API_KEY: z.string().trim(),
   REDOCLY_ORG_ID: z.string().trim(),
   REDOCLY_PORTAL_ID: z.string().trim(),
-  PORTAL_APIS_FOLDER: z.string().trim().default('/'),
+  REDOCLY_DEST_FOLDER_PATH: z
+    .string()
+    .trim()
+    .default('apis/{metadata.team}/{repoId}/{title}')
+    .refine(validateApiDestinationPath, {
+      message: 'Invalid destination path variables',
+    }),
   DATA_FOLDER: z.string().trim(),
   MOUNT_BRANCH_NAME: z.string().trim().default('main'),
   API_FOLDER: z.string().trim().default('/'),
@@ -28,4 +34,17 @@ export type ConfigSchema = z.infer<typeof configSchema>;
 
 export function validateConfig(config: Record<string, any>): ConfigSchema {
   return configSchema.parse(config);
+}
+
+function validateApiDestinationPath(path: string) {
+  return [...path.matchAll(/{(.+?)}/g)].every(
+    ([_, variable]) => variable && isValidApiDestinationPathVariable(variable),
+  );
+}
+
+function isValidApiDestinationPathVariable(variable: string) {
+  return (
+    variable.startsWith('metadata.') ||
+    ['title', 'repoId', 'orgId'].includes(variable)
+  );
 }

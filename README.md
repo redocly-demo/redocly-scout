@@ -63,7 +63,7 @@ npm run build:docker
    - REDOCLY_API_KEY - Redocly organization API token.
    - REDOCLY_ORG_ID - Redocly organization ID.
    - REDOCLY_PORTAL_ID - Redocly portal ID.
-   - PORTAL_APIS_FOLDER - the path where Scout pushes discovered API definitions.
+   - REDOCLY_DEST_FOLDER_PATH - the path where Scout pushes discovered API definitions. The default value is `apis/{metadata.team}/{repoId}/{title}`. All metadata fields could be used as placeholder values with `metadata` prefix, for example `{metadata.team}`. Besides that you could use `{title}`, `{repoId}`, `{orgId}` values.
    - GITHUB_SERVER_URL - GitHub server url. Keep empty in case of GitHub cloud.
    - GITHUB_APP_ID - GitHub application ID. `https://{github-server-url}/organizations/{org}/settings/apps` -> Redocly Scout -> `App ID`.
    - GITHUB_APP_USER_ID - GitHub application user that leaves Scout-related comments. `https://{github-server-url}/users/{app slug name}[bot]`
