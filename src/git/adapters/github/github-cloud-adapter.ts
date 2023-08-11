@@ -174,6 +174,7 @@ export class GitHubCloudClient implements GitAdapter {
       branchName: sourceDetails.branchName,
       author: {
         name: data.commit.author?.name || '',
+        username: data.author?.login || '',
         email: data.commit.author?.email || '',
         image: data.author?.avatar_url || '',
       },

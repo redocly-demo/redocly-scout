@@ -53,10 +53,6 @@ export class DefinitionsValidationService {
     job: ScoutJob,
     jobWorkDir: string,
   ) {
-    if (!results.length) {
-      this.logger.debug({ jobId: job.id }, 'There is no API definitions');
-      return;
-    }
     const sourceDetails = {
       providerType: job.providerType,
       namespaceId: job.namespaceId,
@@ -114,17 +110,10 @@ export class DefinitionsValidationService {
     commitSha: string,
     rootPath: string,
   ): ValidationSummary {
-    const validationResult = results
-      .map(({ result, definition }) => {
-        const definitionPath = relative(rootPath, definition.path);
-        if (result.isValid) {
-          return `**${definitionPath}** ✅`;
-        } else {
-          const errors = JSON.stringify(result.errors, null, 2);
-          return `<details><summary><b>${definitionPath}</b> ❌</summary>\n\n\`\`\`json\n${errors}\n\`\`\`\n</details>`;
-        }
-      })
-      .join('\n\n');
+    const validationResult =
+      results
+        .map((result) => this.getValidationResultMessage(result, rootPath))
+        .join('\n\n') || 'No API definition files discovered';
 
     const success = results.every(({ result }) => result.isValid);
     const status = success ? 'SUCCEEDED' : 'FAILED';
@@ -134,6 +123,18 @@ export class DefinitionsValidationService {
       details: `### Redocly scout: metadata validation\n\nCommit: ${commitSha}\n\n${validationResult}`,
       status,
     };
+  }
+
+  private getValidationResultMessage(
+    { result, definition }: DefinitionValidationResult,
+    rootPath: string,
+  ): string {
+    const definitionPath = relative(rootPath, definition.path);
+    if (result.isValid) {
+      return `**${definitionPath}** ✅`;
+    }
+    const errors = JSON.stringify(result.errors, null, 2);
+    return `<details><summary><b>${definitionPath}</b> ❌</summary>\n\n\`\`\`json\n${errors}\n\`\`\`\n</details>`;
   }
 
   @RetryOnFail

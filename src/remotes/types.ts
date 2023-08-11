@@ -13,6 +13,7 @@ export type RemoteConfig = {
 
 export type CommitAuthor = {
   name: string;
+  username: string;
   email: string;
   image: string;
 };
