@@ -29,6 +29,7 @@ export type CommitDetails = {
 
 export type RemoteContentUpdate = {
   jobId: string;
+  jobContext?: string;
   commit: CommitDetails;
   replace: boolean;
   files: Record<string, File>;

@@ -5,11 +5,17 @@ import {
   DiscoveredDefinition,
   OpenApiDefinition,
   RedoclyConfig,
+  UploadTargetConfig,
+  UploadTargetDestination,
   UploadTargetType,
 } from './types';
 import { basename, dirname, join, relative } from 'path';
 import fs from 'fs';
 import { load } from 'js-yaml';
+import { ScoutJob } from '../jobs/types';
+import { getValueByPath } from '../remotes/get-value-by-path';
+import { ConfigService } from '@nestjs/config';
+import { ConfigSchema } from '../config';
 
 const REDOCLY_CONFIG_FILENAME = 'redocly.yaml';
 const OPENAPI_DEFINITION_EXTENSIONS = ['json', 'yaml', 'yml'];
@@ -17,6 +23,8 @@ const OPENAPI_DEFINITION_EXTENSIONS = ['json', 'yaml', 'yml'];
 @Injectable()
 export class ApiDefinitionsService {
   private readonly logger = new Logger(ApiDefinitionsService.name);
+
+  constructor(private config: ConfigService<ConfigSchema>) {}
 
   discoverApiDefinitions(
     rootPath: string,
@@ -52,40 +60,51 @@ export class ApiDefinitionsService {
 
   convertToUploadTargets(
     definitions: DiscoveredDefinition[],
+    job: ScoutJob,
     rootPath: string,
   ): DefinitionUploadTarget[] {
     const uploadTargets = new Map<string, DefinitionUploadTarget>();
-    for (const definition of definitions) {
-      const definitionFolder = dirname(definition.path);
-      if (this.isVersionedFolder(definitionFolder)) {
-        const path = definitionFolder.split('@')[0] || '';
-        if (this.isRootFolder(relative(rootPath, path))) continue;
 
-        const target = this.convertToUploadTarget(
+    for (const definition of definitions) {
+      const uploadTargetConfig = this.getUploadTargetConfig(
+        definition,
+        definitions,
+        rootPath,
+      );
+      if (uploadTargetConfig) {
+        const target = this.convertToUploadTarget({
           definition,
-          path,
-          'folder',
-          true,
-        );
-        uploadTargets.set(path, target);
-      } else if (definition.path.endsWith(REDOCLY_CONFIG_FILENAME)) {
-        const path = definitionFolder;
-        const target = this.convertToUploadTarget(definition, path, 'folder');
-        uploadTargets.set(path, target);
-      } else if (this.isMultiDefinitionsFolder(definitionFolder, definitions)) {
-        const path = definition.path;
-        const target = this.convertToUploadTarget(definition, path, 'file');
-        uploadTargets.set(path, target);
-      } else {
-        const path = definitionFolder;
-        const target = this.convertToUploadTarget(definition, path, 'folder');
-        uploadTargets.set(path, target);
+          job,
+          ...uploadTargetConfig,
+        });
+        uploadTargets.set(uploadTargetConfig.path, target);
       }
     }
 
     return [...uploadTargets.values()].filter(
       (target, _, targets) => !this.hasParentUploadTarget(target, targets),
     );
+  }
+
+  private getUploadTargetConfig(
+    definition: DiscoveredDefinition,
+    definitions: DiscoveredDefinition[],
+    rootPath: string,
+  ): UploadTargetConfig | undefined {
+    const definitionFolder = dirname(definition.path);
+    if (this.isVersionedFolder(definitionFolder)) {
+      const path = definitionFolder.split('@')[0] || '';
+      // ignore versioned api folders in the root folder
+      if (this.isRootFolder(relative(rootPath, path))) return;
+
+      return { path, isVersioned: true, type: 'folder' };
+    } else if (definition.path.endsWith(REDOCLY_CONFIG_FILENAME)) {
+      return { path: definitionFolder, type: 'folder' };
+    } else if (this.isMultiDefinitionsFolder(definitionFolder, definitions)) {
+      return { path: definition.path, type: 'file' };
+    } else {
+      return { path: definitionFolder, type: 'folder' };
+    }
   }
 
   private getFilesList(folderPath: string): string[] {
@@ -177,18 +196,32 @@ export class ApiDefinitionsService {
     return;
   }
 
-  private convertToUploadTarget(
-    definition: DiscoveredDefinition,
-    path: string,
-    type: UploadTargetType,
+  private convertToUploadTarget({
+    definition,
+    path,
+    type,
+    job,
     isVersioned = false,
-  ): DefinitionUploadTarget {
+  }: {
+    definition: DiscoveredDefinition;
+    path: string;
+    type: UploadTargetType;
+    job: ScoutJob;
+    isVersioned?: boolean;
+  }): DefinitionUploadTarget {
+    const definitionTargetPath = this.getDefinitionTargetPath(definition, job);
+    const { targetPath, remoteMountPath } = this.getUploadTargetDestination(
+      definitionTargetPath,
+      isVersioned,
+    );
+
     return {
-      path: path.replace(/\/$/, ''),
+      sourcePath: path.replace(/\/$/, ''),
+      targetPath,
+      remoteMountPath,
       type,
       metadata: definition.metadata,
       title: definition.title,
-      isVersioned,
     };
   }
 
@@ -228,7 +261,9 @@ export class ApiDefinitionsService {
     targets: DefinitionUploadTarget[],
   ) {
     return targets.some(
-      ({ path }) => target.path !== path && target.path.startsWith(path),
+      ({ sourcePath }) =>
+        target.sourcePath !== sourcePath &&
+        target.sourcePath.startsWith(sourcePath),
     );
   }
 
@@ -244,5 +279,41 @@ export class ApiDefinitionsService {
     }
 
     return metadata;
+  }
+
+  private getDefinitionTargetPath(
+    definition: DiscoveredDefinition,
+    job: ScoutJob,
+  ): string {
+    const apiFolder = this.config.getOrThrow<string>(
+      'REDOCLY_DEST_FOLDER_PATH',
+    );
+    const path = apiFolder
+      .replace(/\{orgId}/g, job.namespaceId)
+      .replace(/\{repoId}/g, job.repositoryId)
+      .replace(/\{title}/g, definition.title)
+      .replace(
+        /{metadata\.(.+?)}/g,
+        (_, path) =>
+          getValueByPath(path, definition.metadata)?.toString() || '',
+      );
+    return path.replace(/^\//, '').replace(/\/$/, '');
+  }
+
+  private getUploadTargetDestination(
+    definitionTargetPath: string,
+    isVersioned: boolean,
+  ): UploadTargetDestination {
+    const targetPathParts = definitionTargetPath.split('/').filter(Boolean);
+    // get last part of target path
+    const definitionFolder = targetPathParts.slice(-1);
+    // get path without the last part
+    const remoteMountPath = targetPathParts.slice(0, -1).join('/');
+    const targetPath = [
+      ...definitionFolder,
+      ...(isVersioned ? [] : ['@latest']),
+    ].join('/');
+
+    return { targetPath, remoteMountPath };
   }
 }

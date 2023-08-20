@@ -2,16 +2,24 @@ import path from 'path';
 import { DiscoveredDefinition } from '../types';
 import { ApiDefinitionsService } from '../api-definitions.service';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScoutJob } from '../../jobs/types';
 
 describe('ApiDefinitionsDiscoveryService', () => {
   let service: ApiDefinitionsService;
+  let configService: ConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      imports: [ConfigModule.forRoot({ isGlobal: true })],
       providers: [ApiDefinitionsService],
     }).compile();
 
     service = module.get<ApiDefinitionsService>(ApiDefinitionsService);
+    configService = module.get<ConfigService>(ConfigService);
+    jest
+      .spyOn(configService, 'getOrThrow')
+      .mockImplementation(() => 'apis/{metadata.team}/{repoId}/{title}');
   });
 
   afterEach(() => {
@@ -80,16 +88,23 @@ describe('ApiDefinitionsDiscoveryService', () => {
   });
 
   describe('convertToUploadTargets', () => {
+    const job = {
+      repositoryId: 'test-repo',
+      namespaceId: 'test-org',
+    } as ScoutJob;
+
     it('should push parent folder in case of versioned apis', () => {
       const apiFiles = [
         { path: '/specs/@v1/openapi.yaml' },
         { path: '/specs/@v2/openapi.yaml' },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
 
       expect(filesToPush).toEqual(
-        expect.arrayContaining([expect.objectContaining({ path: '/specs' })]),
+        expect.arrayContaining([
+          expect.objectContaining({ sourcePath: '/specs' }),
+        ]),
       );
       expect(filesToPush).toHaveLength(1);
     });
@@ -100,7 +115,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
         { path: '@v2/openapi.yaml' },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
       expect(filesToPush).toHaveLength(0);
     });
 
@@ -110,12 +125,12 @@ describe('ApiDefinitionsDiscoveryService', () => {
         { path: '/specs/dogs-openapi.yaml' },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
 
       expect(filesToPush).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ path: '/specs/cats-openapi.yaml' }),
-          expect.objectContaining({ path: '/specs/dogs-openapi.yaml' }),
+          expect.objectContaining({ sourcePath: '/specs/cats-openapi.yaml' }),
+          expect.objectContaining({ sourcePath: '/specs/dogs-openapi.yaml' }),
         ]),
       );
       expect(filesToPush).toHaveLength(2);
@@ -123,16 +138,26 @@ describe('ApiDefinitionsDiscoveryService', () => {
 
     it('should push folder in case when there is only on file in the folder', () => {
       const apiFiles = [
-        { path: '/specs/cats/openapi.yaml' },
-        { path: '/specs/dogs/openapi.yaml' },
+        { path: '/specs/cats/openapi.yaml', title: 'Cats v1' },
+        { path: '/specs/dogs/openapi.yaml', title: 'Dogs v1' },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
 
       expect(filesToPush).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ path: '/specs/cats' }),
-          expect.objectContaining({ path: '/specs/dogs' }),
+          expect.objectContaining({
+            sourcePath: '/specs/cats',
+            type: 'folder',
+            targetPath: 'Cats v1/@latest',
+            remoteMountPath: 'apis/test-repo',
+          }),
+          expect.objectContaining({
+            sourcePath: '/specs/dogs',
+            type: 'folder',
+            targetPath: 'Dogs v1/@latest',
+            remoteMountPath: 'apis/test-repo',
+          }),
         ]),
       );
       expect(filesToPush).toHaveLength(2);
@@ -140,23 +165,47 @@ describe('ApiDefinitionsDiscoveryService', () => {
 
     it('should determine push files and folders', () => {
       const apiFiles = [
-        { path: '/specs/hamsters/openapi.yaml' },
-        { path: '/specs/cats/bengal-openapi.yaml' },
-        { path: '/specs/cats/persian-openapi.yaml' },
+        { path: '/specs/hamsters/openapi.yaml', title: 'Hamsters' },
+        { path: '/specs/cats/bengal-openapi.yaml', title: 'Bengal cats' },
+        { path: '/specs/cats/persian-openapi.yaml', title: 'Persian cats' },
         { path: '/@v1/openapi.yaml' },
         { path: '/@v2/openapi.yaml' },
-        { path: '/specs/dogs/@v1/openapi.yaml' },
-        { path: '/specs/dogs/@v2/openapi.yaml' },
+        { path: '/specs/dogs/@v1/openapi.yaml', title: 'Dogs' },
+        { path: '/specs/dogs/@v2/openapi.yaml', title: 'Dogs' },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '/');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '/');
 
       expect(filesToPush).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ path: '/specs/hamsters' }),
-          expect.objectContaining({ path: '/specs/cats/bengal-openapi.yaml' }),
-          expect.objectContaining({ path: '/specs/cats/persian-openapi.yaml' }),
-          expect.objectContaining({ path: '/specs/dogs' }),
+          expect.objectContaining({
+            sourcePath: '/specs/hamsters',
+            targetPath: 'Hamsters/@latest',
+            remoteMountPath: 'apis/test-repo',
+            type: 'folder',
+            title: 'Hamsters',
+          }),
+          expect.objectContaining({
+            sourcePath: '/specs/cats/bengal-openapi.yaml',
+            targetPath: 'Bengal cats/@latest',
+            remoteMountPath: 'apis/test-repo',
+            type: 'file',
+            title: 'Bengal cats',
+          }),
+          expect.objectContaining({
+            sourcePath: '/specs/cats/persian-openapi.yaml',
+            targetPath: 'Persian cats/@latest',
+            remoteMountPath: 'apis/test-repo',
+            type: 'file',
+            title: 'Persian cats',
+          }),
+          expect.objectContaining({
+            sourcePath: '/specs/dogs',
+            targetPath: 'Dogs',
+            remoteMountPath: 'apis/test-repo',
+            type: 'folder',
+            title: 'Dogs',
+          }),
         ]),
       );
       expect(filesToPush).toHaveLength(4);
@@ -164,29 +213,53 @@ describe('ApiDefinitionsDiscoveryService', () => {
 
     it('should push parent folder in case of versioned apis with nested folders', () => {
       const apiFiles = [
-        { path: '/specs/@v1/openapi.yaml' },
-        { path: '/specs/@v2/openapi.yaml' },
-        { path: '/specs/@v2/dogs/openapi.yaml' },
+        { path: '/specs/@v1/openapi.yaml', title: 'api docs' },
+        { path: '/specs/@v2/openapi.yaml', title: 'api docs' },
+        { path: '/specs/@v2/dogs/openapi.yaml', title: 'api docs' },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
 
       expect(filesToPush).toEqual(
-        expect.arrayContaining([expect.objectContaining({ path: '/specs' })]),
+        expect.arrayContaining([
+          expect.objectContaining({
+            sourcePath: '/specs',
+            targetPath: 'api docs',
+            remoteMountPath: 'apis/test-repo',
+            type: 'folder',
+            title: 'api docs',
+          }),
+        ]),
       );
       expect(filesToPush).toHaveLength(1);
     });
 
     it('should push parent folder in case of versioned apis with root metadata in the redocly.yaml', () => {
       const apiFiles = [
-        { path: '/specs/@v1/openapi.yaml', metadata: { team: 'teamA' } },
-        { path: '/specs/@v1/redocly.yaml', metadata: { team: 'teamB' } },
+        {
+          path: '/specs/@v1/openapi.yaml',
+          metadata: { team: 'teamA' },
+          title: 'api docs',
+        },
+        {
+          path: '/specs/@v1/redocly.yaml',
+          metadata: { team: 'teamB' },
+          title: 'api docs',
+        },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
 
       expect(filesToPush).toEqual(
-        expect.arrayContaining([expect.objectContaining({ path: '/specs' })]),
+        expect.arrayContaining([
+          expect.objectContaining({
+            sourcePath: '/specs',
+            targetPath: 'api docs',
+            remoteMountPath: 'apis/teamB/test-repo',
+            type: 'folder',
+            title: 'api docs',
+          }),
+        ]),
       );
       expect(filesToPush).toHaveLength(1);
     });
@@ -196,10 +269,12 @@ describe('ApiDefinitionsDiscoveryService', () => {
         { path: '/specs/redocly.yaml' },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
 
       expect(filesToPush).toEqual(
-        expect.arrayContaining([expect.objectContaining({ path: '/specs' })]),
+        expect.arrayContaining([
+          expect.objectContaining({ sourcePath: '/specs' }),
+        ]),
       );
       expect(filesToPush).toHaveLength(1);
     });
@@ -210,10 +285,12 @@ describe('ApiDefinitionsDiscoveryService', () => {
         { path: '/specs/redocly.yaml' },
       ] as DiscoveredDefinition[];
 
-      const filesToPush = service.convertToUploadTargets(apiFiles, '');
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
 
       expect(filesToPush).toEqual(
-        expect.arrayContaining([expect.objectContaining({ path: '/specs' })]),
+        expect.arrayContaining([
+          expect.objectContaining({ sourcePath: '/specs' }),
+        ]),
       );
       expect(filesToPush).toHaveLength(1);
     });

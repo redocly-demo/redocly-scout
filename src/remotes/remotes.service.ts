@@ -11,8 +11,7 @@ import {
   CommitDetails,
 } from './types';
 import { ScoutJob } from '../jobs/types';
-import { join } from 'path';
-import { getUploadTargetFilesMap } from './push-files-helpers';
+import { getUploadTargetGroupFilesMap } from './push-files-helpers';
 import { DefinitionUploadTarget } from '../api-definitions/types';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
 import { getValueByPath } from './get-value-by-path';
@@ -24,6 +23,7 @@ export class RemotesService {
   private readonly portalId: string;
   private readonly autoMerge: boolean;
   private readonly mountBranchName: string;
+  private readonly jobContextTemplate: string;
 
   constructor(
     private config: ConfigService<ConfigSchema>,
@@ -33,6 +33,7 @@ export class RemotesService {
     this.portalId = this.config.getOrThrow('REDOCLY_PORTAL_ID');
     this.autoMerge = this.config.getOrThrow('AUTO_MERGE');
     this.mountBranchName = this.config.get('MOUNT_BRANCH_NAME', 'main');
+    this.jobContextTemplate = this.config.get('REDOCLY_JOB_CONTEXT', '');
   }
 
   async pushUploadTargets(
@@ -40,25 +41,38 @@ export class RemotesService {
     job: ScoutJob,
     commit: CommitDetails,
   ) {
-    const promises = uploadTargets.map(async (target) => {
-      const apiFolder = this.config.getOrThrow('REDOCLY_DEST_FOLDER_PATH');
-      const mountPath = this.getMountPath(apiFolder, target, job);
-      const remote = await this.upsertRemote({
-        mountPath,
-        mountBranchName: this.mountBranchName,
-        type: 'CICD',
-        autoMerge: this.autoMerge,
-      });
-      const files = getUploadTargetFilesMap(target);
-      const remoteContentUpdate: RemoteContentUpdate = {
-        jobId: job.id,
-        files,
-        replace: true,
-        commit,
-      };
+    const uploadTargetGroups = new Map<string, DefinitionUploadTarget[]>();
+    for (const target of uploadTargets) {
+      const groupItems = uploadTargetGroups.get(target.remoteMountPath) || [];
+      uploadTargetGroups.set(target.remoteMountPath, [...groupItems, target]);
+    }
 
-      return this.pushRemoteContentUpdate(remote.id, remoteContentUpdate);
-    });
+    const promises = [...uploadTargetGroups].map(
+      async ([remoteMountPath, targets]) => {
+        const remote = await this.upsertRemote({
+          mountPath: remoteMountPath,
+          mountBranchName: this.mountBranchName,
+          type: 'CICD',
+          autoMerge: this.autoMerge,
+        });
+
+        const files = getUploadTargetGroupFilesMap(targets);
+        const jobContext = this.getJobContext(
+          job,
+          targets[0] as DefinitionUploadTarget,
+        );
+
+        const remoteContentUpdate: RemoteContentUpdate = {
+          jobId: job.id,
+          files,
+          replace: true,
+          commit,
+          ...(jobContext ? { jobContext } : {}),
+        };
+
+        return this.pushRemoteContentUpdate(remote.id, remoteContentUpdate);
+      },
+    );
 
     await Promise.all(promises);
   }
@@ -93,21 +107,18 @@ export class RemotesService {
     this.logger.debug({ remoteId }, 'Pushed files to remote');
   }
 
-  getMountPath(
-    apiFolder: string,
-    definition: DefinitionUploadTarget,
+  private getJobContext(
     job: ScoutJob,
-  ) {
-    const version = definition.isVersioned ? '' : '@latest';
-    const path = apiFolder
+    uploadTarget: DefinitionUploadTarget,
+  ): string {
+    return this.jobContextTemplate
       .replace(/\{orgId}/g, job.namespaceId)
       .replace(/\{repoId}/g, job.repositoryId)
-      .replace(/\{title}/g, definition.title)
+      .replace(/\{title}/g, uploadTarget.title)
       .replace(
         /{metadata\.(.+?)}/g,
         (_, path) =>
-          getValueByPath(path, definition.metadata)?.toString() || '',
+          getValueByPath(path, uploadTarget.metadata)?.toString() || '',
       );
-    return join(path, version).replace(/^\//, '').replace(/\/$/, '');
   }
 }

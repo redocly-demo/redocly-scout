@@ -17,6 +17,7 @@ const configSchema = z.object({
       message: 'Invalid destination path variables',
     }),
   DATA_FOLDER: z.string().trim(),
+  REDOCLY_JOB_CONTEXT: z.string().trim().optional(),
   MOUNT_BRANCH_NAME: z.string().trim().default('main'),
   API_FOLDER: z.string().trim().default('/'),
   GITHUB_APP_ID: z.string().trim().optional(),

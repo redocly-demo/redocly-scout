@@ -134,12 +134,13 @@ export class JobsService {
         jobWorkDir,
       );
 
-      const validDefinitions = validationResults
-        .filter(({ result }) => result.isValid)
-        .map((validationResult) => validationResult.definition);
+      if (validationResults.some(({ result }) => !result.isValid)) {
+        return;
+      }
 
       const uploadTargets = this.apiDefinitionsService.convertToUploadTargets(
-        validDefinitions,
+        discoveredDefinitions,
+        job,
         jobWorkDir,
       );
 

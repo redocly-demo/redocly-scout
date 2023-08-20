@@ -110,10 +110,16 @@ export class DefinitionsValidationService {
     commitSha: string,
     rootPath: string,
   ): ValidationSummary {
-    const validationResult =
-      results
-        .map((result) => this.getValidationResultMessage(result, rootPath))
-        .join('\n\n') || 'No API definition files discovered';
+    if (!results.length) {
+      return {
+        message: `Metadata validation skipped`,
+        details: `### Redocly scout: metadata validation\n\nCommit: ${commitSha}\n\nNo API definition files discovered`,
+        status: 'SUCCEEDED',
+      };
+    }
+    const validationResult = results
+      .map((result) => this.getValidationResultMessage(result, rootPath))
+      .join('\n\n');
 
     const success = results.every(({ result }) => result.isValid);
     const status = success ? 'SUCCEEDED' : 'FAILED';

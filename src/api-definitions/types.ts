@@ -33,11 +33,23 @@ export type DiscoveredDefinition = {
 export type UploadTargetType = 'file' | 'folder';
 
 export type DefinitionUploadTarget = {
-  path: string;
+  sourcePath: string;
+  targetPath: string;
+  remoteMountPath: string;
   type: UploadTargetType;
   title: string;
   metadata: ApiDefinitionMetadata;
-  isVersioned: boolean;
+};
+
+export type UploadTargetConfig = {
+  type: UploadTargetType;
+  path: string;
+  isVersioned?: boolean;
+};
+
+export type UploadTargetDestination = {
+  targetPath: string;
+  remoteMountPath: string;
 };
 
 export type ValidationError = {
