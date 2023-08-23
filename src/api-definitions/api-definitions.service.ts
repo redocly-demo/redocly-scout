@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   ApiDefinitionMetadata,
+  DefinitionDiscoveryResult,
   DefinitionUploadTarget,
   DiscoveredDefinition,
   OpenApiDefinition,
@@ -29,11 +30,12 @@ export class ApiDefinitionsService {
   discoverApiDefinitions(
     rootPath: string,
     apiFolder: string,
-  ): DiscoveredDefinition[] {
+  ): DefinitionDiscoveryResult {
     const apiFolderPath = join(rootPath, apiFolder);
+    let hasRedoclyConfig = false;
 
     if (!fs.existsSync(apiFolderPath)) {
-      return [];
+      return { hasRedoclyConfig, definitions: [] };
     }
 
     const files = this.getFilesList(apiFolderPath);
@@ -41,6 +43,7 @@ export class ApiDefinitionsService {
 
     for (const filePath of files) {
       if (this.isRedoclyConfig(filePath)) {
+        hasRedoclyConfig = true;
         const configDefinitions = this.getDefinitionsFromConfigByPath(filePath);
         for (const definition of configDefinitions) {
           if (!definitions.has(definition.path)) {
@@ -55,7 +58,7 @@ export class ApiDefinitionsService {
       }
     }
 
-    return [...definitions.values()];
+    return { hasRedoclyConfig, definitions: [...definitions.values()] };
   }
 
   convertToUploadTargets(

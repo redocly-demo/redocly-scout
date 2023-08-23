@@ -56,10 +56,16 @@ describe('ApiDefinitionsDiscoveryService', () => {
         },
       ];
 
-      const apiFiles = service.discoverApiDefinitions(apiDocsPath, '/spec');
+      const discoveryResult = service.discoverApiDefinitions(
+        apiDocsPath,
+        '/spec',
+      );
 
-      expect(apiFiles).toEqual(expect.arrayContaining(expected));
-      expect(apiFiles).toHaveLength(3);
+      expect(discoveryResult.definitions).toEqual(
+        expect.arrayContaining(expected),
+      );
+      expect(discoveryResult.definitions).toHaveLength(3);
+      expect(discoveryResult.hasRedoclyConfig).toBeTruthy();
     });
 
     it('should discover api definitions with root metadata in redocly.yaml', () => {
@@ -80,10 +86,16 @@ describe('ApiDefinitionsDiscoveryService', () => {
         },
       ];
 
-      const apiFiles = service.discoverApiDefinitions(apiDocsPath, '/petstore');
+      const discoveryResult = service.discoverApiDefinitions(
+        apiDocsPath,
+        '/petstore',
+      );
 
-      expect(apiFiles).toEqual(expect.arrayContaining(expected));
-      expect(apiFiles).toHaveLength(2);
+      expect(discoveryResult.definitions).toEqual(
+        expect.arrayContaining(expected),
+      );
+      expect(discoveryResult.definitions).toHaveLength(2);
+      expect(discoveryResult.hasRedoclyConfig).toBeTruthy();
     });
   });
 
@@ -283,6 +295,21 @@ describe('ApiDefinitionsDiscoveryService', () => {
       const apiFiles = [
         { path: '/specs/openapi.yaml' },
         { path: '/specs/redocly.yaml' },
+      ] as DiscoveredDefinition[];
+
+      const filesToPush = service.convertToUploadTargets(apiFiles, job, '');
+
+      expect(filesToPush).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ sourcePath: '/specs' }),
+        ]),
+      );
+      expect(filesToPush).toHaveLength(1);
+    });
+
+    it('should push folder in case of single redocly.yaml', () => {
+      const apiFiles = [
+        { path: '/specs/openapi.yaml' },
       ] as DiscoveredDefinition[];
 
       const filesToPush = service.convertToUploadTargets(apiFiles, job, '');

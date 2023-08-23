@@ -14,6 +14,7 @@ import { DefinitionsValidationService } from '../api-definitions/definitions-val
 import { HealthService } from '../healthcheck/health.service';
 
 const HANDLE_JOB_INTERVAL = 5 * 1000; // 5 sec
+const TRIGGER_NEXT_JOB_POLL_TIMEOUT = 100; // 100 ms
 const HEALTH_JOB_INTERVAL = 5 * 60 * 1000; // 5 min
 
 @Injectable()
@@ -43,7 +44,7 @@ export class JobsService {
   @Interval(HANDLE_JOB_INTERVAL)
   async pollJob() {
     if (this.activeJobs.size >= this.maxConcurrentJobs) {
-      this.logger.warn(
+      this.logger.debug(
         { activeJobs: this.activeJobs.size },
         'Max concurrent jobs limit reached',
       );
@@ -56,6 +57,8 @@ export class JobsService {
     if (!job) {
       return;
     }
+
+    this.triggerPollJob();
 
     try {
       this.logger.log({ jobId: job.id, jobType: job.type }, 'Starting a job');
@@ -85,6 +88,7 @@ export class JobsService {
       });
     } finally {
       this.activeJobs.delete(job.id);
+      this.triggerPollJob();
     }
   }
 
@@ -115,21 +119,23 @@ export class JobsService {
     await this.gitService.checkout(sourceDetails, job.commitSha, jobWorkDir);
 
     try {
-      const discoveredDefinitions =
-        this.apiDefinitionsService.discoverApiDefinitions(
-          jobWorkDir,
-          this.apiFolder,
-        );
+      const discoveryResult = this.apiDefinitionsService.discoverApiDefinitions(
+        jobWorkDir,
+        this.apiFolder,
+      );
 
       await this.definitionsValidationService.publishValidationStartedStatus(
         job,
       );
 
       const validationResults =
-        await this.definitionsValidationService.validate(discoveredDefinitions);
+        await this.definitionsValidationService.validate(
+          discoveryResult.definitions,
+        );
 
       await this.definitionsValidationService.publishValidationResults(
         validationResults,
+        discoveryResult,
         job,
         jobWorkDir,
       );
@@ -139,7 +145,7 @@ export class JobsService {
       }
 
       const uploadTargets = this.apiDefinitionsService.convertToUploadTargets(
-        discoveredDefinitions,
+        discoveryResult.definitions,
         job,
         jobWorkDir,
       );
@@ -197,5 +203,15 @@ export class JobsService {
       repositoryId: job.repositoryId,
       branchName: job.branch,
     };
+  }
+
+  private triggerPollJob() {
+    setTimeout(async () => {
+      try {
+        await this.pollJob();
+      } catch (err) {
+        this.logger.error({ err }, 'Failed to poll job');
+      }
+    }, TRIGGER_NEXT_JOB_POLL_TIMEOUT);
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   ApiDefinitionMetadata,
+  DefinitionDiscoveryResult,
   DefinitionValidationResult,
   DiscoveredDefinition,
   ValidationError,
@@ -49,7 +50,8 @@ export class DefinitionsValidationService {
 
   @RetryOnFail
   async publishValidationResults(
-    results: DefinitionValidationResult[],
+    validationResults: DefinitionValidationResult[],
+    discoveryResult: DefinitionDiscoveryResult,
     job: ScoutJob,
     jobWorkDir: string,
   ) {
@@ -60,7 +62,8 @@ export class DefinitionsValidationService {
       branchName: job.branch,
     };
     const { status, details, message } = this.getValidationSummary(
-      results,
+      validationResults,
+      discoveryResult,
       job.commitSha,
       jobWorkDir,
     );
@@ -107,27 +110,48 @@ export class DefinitionsValidationService {
 
   private getValidationSummary(
     results: DefinitionValidationResult[],
+    discoveryResult: DefinitionDiscoveryResult,
     commitSha: string,
     rootPath: string,
   ): ValidationSummary {
-    if (!results.length) {
+    const filesDetails = results.map((result) =>
+      this.getValidationResultMessage(result, rootPath),
+    );
+
+    const detailsHeader = `### Redocly scout: metadata validation\n\nCommit: ${commitSha}\n\n`;
+
+    if (results.length > 0) {
+      const success = results.every(({ result }) => result.isValid);
+
       return {
-        message: `Metadata validation skipped`,
-        details: `### Redocly scout: metadata validation\n\nCommit: ${commitSha}\n\nNo API definition files discovered`,
+        message: `Metadata validation ${success ? 'successful' : 'failed'}`,
+        details: `${detailsHeader}${filesDetails.join('\n\n')}`,
+        status: success ? 'SUCCEEDED' : 'FAILED',
+      };
+    }
+
+    if (!this.config.get('REDOCLY_METADATA_REQUIRED')) {
+      return {
+        message: `Metadata validation skipped'}`,
+        details: `${detailsHeader}APIs not found`,
         status: 'SUCCEEDED',
       };
     }
-    const validationResult = results
-      .map((result) => this.getValidationResultMessage(result, rootPath))
-      .join('\n\n');
 
-    const success = results.every(({ result }) => result.isValid);
-    const status = success ? 'SUCCEEDED' : 'FAILED';
+    // there is no redocly.yaml
+    if (!discoveryResult.hasRedoclyConfig) {
+      return {
+        message: `redocly.yaml file not found`,
+        details: `${detailsHeader}redocly.yaml file not found`,
+        status: 'FAILED',
+      };
+    }
 
+    // there is redocly.yaml but without metadata
     return {
-      message: `Metadata validation ${success ? 'successful' : 'failed'}`,
-      details: `### Redocly scout: metadata validation\n\nCommit: ${commitSha}\n\n${validationResult}`,
-      status,
+      message: `metadata.yaml not found`,
+      details: `${detailsHeader}metadata.yaml not found`,
+      status: 'FAILED',
     };
   }
 

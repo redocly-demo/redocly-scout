@@ -18,6 +18,7 @@ const configSchema = z.object({
     }),
   DATA_FOLDER: z.string().trim(),
   REDOCLY_JOB_CONTEXT: z.string().trim().optional(),
+  REDOCLY_METADATA_REQUIRED: z.coerce.boolean().default(false),
   MOUNT_BRANCH_NAME: z.string().trim().default('main'),
   API_FOLDER: z.string().trim().default('/'),
   GITHUB_APP_ID: z.string().trim().optional(),

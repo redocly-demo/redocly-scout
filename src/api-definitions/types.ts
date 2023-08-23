@@ -30,6 +30,11 @@ export type DiscoveredDefinition = {
   metadata: ApiDefinitionMetadata;
 };
 
+export type DefinitionDiscoveryResult = {
+  hasRedoclyConfig: boolean;
+  definitions: DiscoveredDefinition[];
+};
+
 export type UploadTargetType = 'file' | 'folder';
 
 export type DefinitionUploadTarget = {
