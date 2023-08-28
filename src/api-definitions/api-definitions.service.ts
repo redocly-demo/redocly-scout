@@ -266,7 +266,7 @@ export class ApiDefinitionsService {
     return targets.some(
       ({ sourcePath }) =>
         target.sourcePath !== sourcePath &&
-        target.sourcePath.startsWith(sourcePath),
+        target.sourcePath.startsWith(sourcePath + '/'),
     );
   }
 
