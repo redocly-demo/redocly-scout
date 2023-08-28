@@ -57,6 +57,13 @@ export class RemotesService {
         });
 
         const files = getUploadTargetGroupFilesMap(targets);
+        this.logger.debug(
+          {
+            jobId: job.id,
+            files,
+          },
+          'Files being uploaded',
+        );
         const jobContext = this.getJobContext(
           job,
           targets[0] as DefinitionUploadTarget,

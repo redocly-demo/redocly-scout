@@ -1,6 +1,6 @@
 {
   "name": "redocly-scout",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Redocly Scout is a discovery and publishing tool for APIs and documentation.",
   "author": "Redocly",
   "private": true,
