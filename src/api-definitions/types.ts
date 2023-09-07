@@ -31,6 +31,7 @@ export type DiscoveredDefinition = {
 };
 
 export type DefinitionDiscoveryResult = {
+  isApiFolderMissing: boolean;
   hasRedoclyConfig: boolean;
   definitions: DiscoveredDefinition[];
 };

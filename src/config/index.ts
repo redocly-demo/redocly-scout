@@ -3,7 +3,9 @@ import { z } from 'zod';
 const configSchema = z.object({
   PORT: z.coerce.number().min(1).default(8080),
   MAX_CONCURRENT_JOBS: z.coerce.number().min(1).default(2),
-  AUTO_MERGE: z.coerce.boolean().default(false),
+  AUTO_MERGE: z
+    .enum(['true', 'false', ''])
+    .transform((value) => value === 'true'),
   SCOUT_VERSION: z.string().trim().min(1),
   REDOCLY_API_URL: z.string().trim(),
   REDOCLY_API_KEY: z.string().trim(),
@@ -18,7 +20,9 @@ const configSchema = z.object({
     }),
   DATA_FOLDER: z.string().trim(),
   REDOCLY_JOB_CONTEXT: z.string().trim().optional(),
-  REDOCLY_METADATA_REQUIRED: z.coerce.boolean().default(false),
+  REDOCLY_METADATA_REQUIRED: z
+    .enum(['true', 'false', ''])
+    .transform((value) => value === 'true'),
   MOUNT_BRANCH_NAME: z.string().trim().default('main'),
   API_FOLDER: z.string().trim().default('/'),
   GITHUB_APP_ID: z.string().trim().optional(),

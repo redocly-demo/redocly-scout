@@ -186,7 +186,7 @@ export class JobsService {
       job.namespaceId,
       job.repositoryId,
       job.commitSha,
-      job.id,
+      `${job.id}-${job.attempts.toString()}`,
     );
 
     if (!fs.existsSync(jobWorkDir)) {

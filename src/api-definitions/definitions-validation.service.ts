@@ -131,10 +131,22 @@ export class DefinitionsValidationService {
     }
 
     if (!this.config.get('REDOCLY_METADATA_REQUIRED')) {
+      const apiFolder = this.config.get('API_FOLDER');
       return {
-        message: `Metadata validation skipped'}`,
-        details: `${detailsHeader}APIs not found`,
+        message: `Metadata validation skipped`,
+        details: discoveryResult.isApiFolderMissing
+          ? `${detailsHeader}APIs folder \`${apiFolder}\` not found`
+          : `${detailsHeader}APIs not found`,
         status: 'SUCCEEDED',
+      };
+    }
+
+    if (discoveryResult.isApiFolderMissing) {
+      const apiFolder = this.config.get('API_FOLDER');
+      return {
+        message: `APIs folder not found`,
+        details: `${detailsHeader}APIs folder \`${apiFolder}\` not found`,
+        status: 'FAILED',
       };
     }
 

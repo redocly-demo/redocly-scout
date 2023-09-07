@@ -35,7 +35,7 @@ export class ApiDefinitionsService {
     let hasRedoclyConfig = false;
 
     if (!fs.existsSync(apiFolderPath)) {
-      return { hasRedoclyConfig, definitions: [] };
+      return { isApiFolderMissing: true, hasRedoclyConfig, definitions: [] };
     }
 
     const files = this.getFilesList(apiFolderPath);
@@ -58,7 +58,11 @@ export class ApiDefinitionsService {
       }
     }
 
-    return { hasRedoclyConfig, definitions: [...definitions.values()] };
+    return {
+      isApiFolderMissing: false,
+      hasRedoclyConfig,
+      definitions: [...definitions.values()],
+    };
   }
 
   convertToUploadTargets(
