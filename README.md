@@ -1,4 +1,7 @@
 # Redocly Scout
+
+![logo](https://github.com/redocly-demo/redocly-scout/assets/3975738/f719d8af-fd5a-4752-9709-7501f7245c9d)
+
 Redocly Scout is a discovery and publishing tool for APIs and documentation. It is designed to be deployed in a customer's infrastructure and to be used with Blue Harvest and Redocly Registry.
 
 ## Prerequisites
