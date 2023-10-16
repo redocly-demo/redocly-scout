@@ -4,6 +4,7 @@ import { ApiDefinitionsService } from '../api-definitions.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScoutJob } from '../../jobs/types';
+import { DefinitionHooksService } from '../definition-hooks.service';
 
 describe('ApiDefinitionsDiscoveryService', () => {
   let service: ApiDefinitionsService;
@@ -12,7 +13,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true })],
-      providers: [ApiDefinitionsService],
+      providers: [ApiDefinitionsService, DefinitionHooksService],
     }).compile();
 
     service = module.get<ApiDefinitionsService>(ApiDefinitionsService);
@@ -27,7 +28,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
   });
 
   describe('discoverApiDefinitions', () => {
-    it('should discover api definitions', () => {
+    it('should discover api definitions', async () => {
       const apiDocsPath = path.join(__dirname, 'fixtures');
       //    └── spec
       //        ├── @v1
@@ -56,7 +57,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
         },
       ];
 
-      const discoveryResult = service.discoverApiDefinitions(
+      const discoveryResult = await service.discoverApiDefinitions(
         apiDocsPath,
         '/spec',
       );
@@ -68,7 +69,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
       expect(discoveryResult.hasRedoclyConfig).toBeTruthy();
     });
 
-    it('should discover api definitions with root metadata in redocly.yaml', () => {
+    it('should discover api definitions with root metadata in redocly.yaml', async () => {
       const apiDocsPath = path.join(__dirname, 'fixtures');
       //    └── petstore
       //        ├── petstore.yaml # with metadata inside
@@ -86,7 +87,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
         },
       ];
 
-      const discoveryResult = service.discoverApiDefinitions(
+      const discoveryResult = await service.discoverApiDefinitions(
         apiDocsPath,
         '/petstore',
       );

@@ -8,6 +8,7 @@ import { GenericWebhookEvent } from '../git/adapters/types';
 import { ProcessGitRepoTodoType } from './dto/create-todo.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
+import { JOB_ID_HEADER } from '../common/constants';
 
 @Injectable()
 export class TasksService {
@@ -68,20 +69,27 @@ export class TasksService {
   }
 
   @RetryOnFail
-  async updateStatus({ id, status }: UpdateTaskStatusDto): Promise<ScoutJob> {
+  async updateStatus({
+    id,
+    status,
+    metadata,
+  }: UpdateTaskStatusDto): Promise<ScoutJob> {
     const url = `/orgs/${this.orgId}/portals/${this.portalId}/scout/tasks/${id}`;
+    const headers = { [JOB_ID_HEADER]: id };
 
     const job = await firstValueFrom(
-      this.httpService.patch<ScoutJob>(url, { status }).pipe(
-        map((res) => res.data),
-        catchError((err) => {
-          this.logger.error(
-            { err, jobId: id, status },
-            'Failed to update job status',
-          );
-          throw err;
-        }),
-      ),
+      this.httpService
+        .patch<ScoutJob>(url, { status, metadata }, { headers })
+        .pipe(
+          map((res) => res.data),
+          catchError((err) => {
+            this.logger.error(
+              { err, jobId: id, status },
+              'Failed to update job status',
+            );
+            throw err;
+          }),
+        ),
     );
 
     this.logger.debug(

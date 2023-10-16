@@ -17,6 +17,8 @@ import { ScoutJob } from '../jobs/types';
 import { GitService } from '../git/git.service';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
 import { getValueByPath } from '../remotes/get-value-by-path';
+import { JOB_ID_HEADER } from '../common/constants';
+import { REDOCLY_CONFIG_FILENAME } from './api-definitions.service';
 
 @Injectable()
 export class DefinitionsValidationService {
@@ -34,11 +36,12 @@ export class DefinitionsValidationService {
   }
 
   async validate(
+    jobId: string,
     definitions: DiscoveredDefinition[],
   ): Promise<DefinitionValidationResult[]> {
     return Promise.all(
       definitions.map(async (definition) => {
-        const result = await this.validateMetadata(definition.metadata);
+        const result = await this.validateMetadata(jobId, definition.metadata);
         this.logger.debug(
           { definitionPath: definition.path },
           'Metadata validated',
@@ -123,9 +126,12 @@ export class DefinitionsValidationService {
     if (results.length > 0) {
       const success = results.every(({ result }) => result.isValid);
 
+      const hasOpenapiFiles = discoveryResult.definitions.filter(({ path }) => !path.endsWith(REDOCLY_CONFIG_FILENAME)).length > 0;
+      const noOpenapiWarning = hasOpenapiFiles ? '' : '\n\n>[!WARNING]\n>API spec file not found';
+
       return {
         message: `Metadata validation ${success ? 'successful' : 'failed'}`,
-        details: `${detailsHeader}${filesDetails.join('\n\n')}`,
+        details: `${detailsHeader}${filesDetails.join('\n\n')}${noOpenapiWarning}`,
         status: success ? 'SUCCEEDED' : 'FAILED',
       };
     }
@@ -181,13 +187,15 @@ export class DefinitionsValidationService {
 
   @RetryOnFail
   private async validateMetadata(
+    jobId: string,
     metadata: ApiDefinitionMetadata,
   ): Promise<ValidationResult> {
     const url = `/orgs/${this.orgId}/portals/${this.portalId}/scout/metadata/validate`;
+    const headers = { [JOB_ID_HEADER]: jobId };
 
     const schemaValidationResult = await firstValueFrom(
       this.httpService
-        .post<ValidationResult>(url, metadata)
+        .post<ValidationResult>(url, metadata, { headers })
         .pipe(map((res) => res.data)),
     );
 

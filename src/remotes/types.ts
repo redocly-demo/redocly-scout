@@ -5,6 +5,7 @@ export type Remote = {
 };
 
 export type RemoteConfig = {
+  jobId: string;
   mountPath: string;
   mountBranchName: string;
   type: 'CICD';
@@ -25,6 +26,7 @@ export type CommitDetails = {
   message: string;
   url: string;
   author: CommitAuthor;
+  createdAt?: string;
 };
 
 export type RemoteContentUpdate = {

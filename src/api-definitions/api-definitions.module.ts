@@ -5,6 +5,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ApiDefinitionsService } from './api-definitions.service';
 import { RedoclyHttpConfigService } from '../config/redocly-http-config.service';
 import { DefinitionsValidationService } from './definitions-validation.service';
+import { DefinitionHooksService } from './definition-hooks.service';
 import { GitModule } from '../git/git.module';
 
 @Module({
@@ -13,7 +14,11 @@ import { GitModule } from '../git/git.module';
     HttpModule.registerAsync({ useClass: RedoclyHttpConfigService }),
     GitModule,
   ],
-  providers: [ApiDefinitionsService, DefinitionsValidationService],
+  providers: [
+    ApiDefinitionsService,
+    DefinitionsValidationService,
+    DefinitionHooksService,
+  ],
   exports: [ApiDefinitionsService, DefinitionsValidationService],
 })
 export class ApiDefinitionsModule {}

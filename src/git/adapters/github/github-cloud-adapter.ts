@@ -13,6 +13,7 @@ import LRUCache from 'lru-cache';
 
 const GITHUB_CLOUD_URL = 'https://github.com';
 const GITHUB_CLOUD_API_URL = 'https://api.github.com';
+const REQUEST_TIMEOUT = 2 * 60 * 1000; // 2 min
 
 @Injectable()
 export class GitHubCloudClient implements GitAdapter {
@@ -44,6 +45,9 @@ export class GitHubCloudClient implements GitAdapter {
         appId,
         privateKey,
       },
+      request: {
+        timeout: REQUEST_TIMEOUT,
+      },
     });
   }
 
@@ -59,6 +63,9 @@ export class GitHubCloudClient implements GitAdapter {
         appId: this.config.getOrThrow('GITHUB_APP_ID'),
         privateKey: this.config.getOrThrow('GITHUB_PRIVATE_KEY'),
         installationId,
+      },
+      request: {
+        timeout: REQUEST_TIMEOUT,
       },
     });
   }
@@ -178,12 +185,18 @@ export class GitHubCloudClient implements GitAdapter {
         email: data.commit.author?.email || '',
         image: data.author?.avatar_url || '',
       },
+      ...(data.commit.author?.date ? { createdAt: data.commit.author.date } : {}),
     };
   }
 
   public async checkConnectivity(): Promise<boolean> {
     const expectedStatus = 401;
-    const client = new Octokit({ baseUrl: this.getBaseApiUrl() });
+    const client = new Octokit({
+      baseUrl: this.getBaseApiUrl(),
+      request: {
+        timeout: REQUEST_TIMEOUT,
+      },
+    });
 
     const response = await client.rest.orgs
       .list({ per_page: 1 })

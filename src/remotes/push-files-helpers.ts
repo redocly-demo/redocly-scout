@@ -1,28 +1,28 @@
 import { File } from 'buffer';
-import fs from 'fs';
+import fs from 'node:fs/promises';
 import { basename, join, relative } from 'path';
 import { DefinitionUploadTarget } from '../api-definitions/types';
 
 const IGNORE_FILE_ENTRIES = ['.git'];
 
-export function getUploadTargetGroupFilesMap(
+export async function getUploadTargetGroupFilesMap(
   uploadTargets: DefinitionUploadTarget[],
-): Record<string, File> {
+): Promise<Record<string, File>> {
   const files: Record<string, File> = {};
 
   for (const target of uploadTargets) {
-    Object.assign(files, getUploadTargetFilesMap(target));
+    Object.assign(files, await getUploadTargetFilesMap(target));
   }
 
   return files;
 }
 
-function getUploadTargetFilesMap(
+async function getUploadTargetFilesMap(
   uploadTarget: DefinitionUploadTarget,
-): Record<string, File> {
+): Promise<Record<string, File>> {
   switch (uploadTarget.type) {
     case 'file':
-      const buffer = fs.readFileSync(uploadTarget.sourcePath);
+      const buffer = await fs.readFile(uploadTarget.sourcePath);
       const file = new File([buffer], basename(uploadTarget.sourcePath));
       const path = join(
         uploadTarget.targetPath,
@@ -38,7 +38,7 @@ function getUploadTargetFilesMap(
   }
 }
 
-function getFolderFilesMap({
+async function getFolderFilesMap({
   folderPath,
   rootPath,
   targetPath,
@@ -46,8 +46,8 @@ function getFolderFilesMap({
   folderPath: string;
   rootPath: string;
   targetPath: string;
-}): Record<string, File> {
-  const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+}): Promise<Record<string, File>> {
+  const entries = await fs.readdir(folderPath, { withFileTypes: true });
   const files: Record<string, File> = {};
 
   for (const entry of entries) {
@@ -56,7 +56,7 @@ function getFolderFilesMap({
     }
     const entryPath = join(folderPath, entry.name);
     if (entry.isFile()) {
-      const buffer = fs.readFileSync(entryPath);
+      const buffer = await fs.readFile(entryPath);
       const path = join(targetPath, relative(rootPath, entryPath));
       files[path] = new File([buffer], entry.name);
     } else if (entry.isDirectory()) {

@@ -10,48 +10,56 @@ import {
   UploadTargetDestination,
   UploadTargetType,
 } from './types';
-import { basename, dirname, join, relative } from 'path';
-import fs from 'fs';
-import { load } from 'js-yaml';
+import { basename, dirname, join, relative, extname } from 'node:path';
+import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { load, dump } from 'js-yaml';
 import { ScoutJob } from '../jobs/types';
 import { getValueByPath } from '../remotes/get-value-by-path';
 import { ConfigService } from '@nestjs/config';
 import { ConfigSchema } from '../config';
+import { DefinitionHooksService } from './definition-hooks.service';
 
-const REDOCLY_CONFIG_FILENAME = 'redocly.yaml';
+export const REDOCLY_CONFIG_FILENAME = 'redocly.yaml';
 const OPENAPI_DEFINITION_EXTENSIONS = ['json', 'yaml', 'yml'];
 
 @Injectable()
 export class ApiDefinitionsService {
   private readonly logger = new Logger(ApiDefinitionsService.name);
 
-  constructor(private config: ConfigService<ConfigSchema>) {}
+  constructor(
+    private config: ConfigService<ConfigSchema>,
+    private definitionHooks: DefinitionHooksService,
+  ) {}
 
-  discoverApiDefinitions(
+  async discoverApiDefinitions(
     rootPath: string,
     apiFolder: string,
-  ): DefinitionDiscoveryResult {
+  ): Promise<DefinitionDiscoveryResult> {
     const apiFolderPath = join(rootPath, apiFolder);
     let hasRedoclyConfig = false;
 
-    if (!fs.existsSync(apiFolderPath)) {
+    if (!existsSync(apiFolderPath)) {
       return { isApiFolderMissing: true, hasRedoclyConfig, definitions: [] };
     }
 
-    const files = this.getFilesList(apiFolderPath);
+    const files = await this.getFilesList(apiFolderPath);
     const definitions = new Map<string, DiscoveredDefinition>();
 
     for (const filePath of files) {
       if (this.isRedoclyConfig(filePath)) {
         hasRedoclyConfig = true;
-        const configDefinitions = this.getDefinitionsFromConfigByPath(filePath);
+        const configDefinitions = await this.getDefinitionsFromConfigByPath(
+          filePath,
+          rootPath,
+        );
         for (const definition of configDefinitions) {
           if (!definitions.has(definition.path)) {
             definitions.set(definition.path, definition);
           }
         }
       } else if (this.isOpenApiFileExt(filePath)) {
-        const definition = this.parseDefinitionByPath(filePath);
+        const definition = await this.parseDefinitionByPath(filePath, rootPath);
         if (definition) {
           definitions.set(definition.path, definition);
         }
@@ -114,15 +122,15 @@ export class ApiDefinitionsService {
     }
   }
 
-  private getFilesList(folderPath: string): string[] {
-    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+  private async getFilesList(folderPath: string): Promise<string[]> {
+    const entries = await fs.readdir(folderPath, { withFileTypes: true });
     const files: string[] = [];
 
     for (const entry of entries) {
       if (entry.isFile()) {
         files.push(join(folderPath, entry.name));
       } else if (entry.isDirectory()) {
-        files.push(...this.getFilesList(join(folderPath, entry.name)));
+        files.push(...(await this.getFilesList(join(folderPath, entry.name))));
       }
     }
 
@@ -137,10 +145,19 @@ export class ApiDefinitionsService {
     return OPENAPI_DEFINITION_EXTENSIONS.some((ext) => filePath.endsWith(ext));
   }
 
-  private getDefinitionsFromConfigByPath(
+  private async dumpToFs(path: string, content: any) {
+    if (extname(path) === '.json') {
+      await fs.writeFile(path, JSON.stringify(content, null, 2));
+    } else {
+      await fs.writeFile(path, dump(content));
+    }
+  }
+
+  private async getDefinitionsFromConfigByPath(
     configPath: string,
-  ): DiscoveredDefinition[] {
-    const config = this.parseFileByPath<RedoclyConfig>(configPath);
+    rootPath: string,
+  ): Promise<DiscoveredDefinition[]> {
+    const config = await this.parseFileByPath<RedoclyConfig>(configPath);
 
     if (!config) {
       return [];
@@ -148,57 +165,102 @@ export class ApiDefinitionsService {
 
     const apis = Object.keys(config.apis || {});
     const definitions: DiscoveredDefinition[] = [];
-    const rootMetadata = this.resolveMetadataRef(config.metadata, configPath);
+    const { metadata: rootMetadata, resolvedPath } =
+      await this.resolveMetadataRef(config.metadata, configPath);
 
-    if (rootMetadata) {
+    const enrichedRootMetadata = this.definitionHooks.enrichMetadata(
+      { rootPath, filePath: configPath },
+      rootMetadata,
+    );
+
+    if (enrichedRootMetadata) {
+      if (resolvedPath === configPath) {
+        config.metadata = enrichedRootMetadata;
+      } else {
+        await this.dumpToFs(resolvedPath, enrichedRootMetadata);
+      }
+
       const configFolder = this.isVersionedFolder(configPath)
         ? configPath.split('@')[0] || ''
         : dirname(configPath);
 
       definitions.push({
         path: configPath,
-        title: rootMetadata.title || basename(configFolder),
-        metadata: rootMetadata,
+        title: enrichedRootMetadata.title || basename(configFolder),
+        metadata: enrichedRootMetadata,
       });
     }
 
     for (const api of apis) {
       const configApi = config?.apis?.[api];
       // try to get metadata from api level, otherwise check root metadata
-      const apiMetadata = this.resolveMetadataRef(
-        configApi?.metadata || rootMetadata,
-        configPath,
+      const { metadata: apiMetadata, resolvedPath } =
+        await this.resolveMetadataRef(configApi?.metadata, configPath);
+
+      const enrichedApiMetadata = this.definitionHooks.enrichMetadata(
+        { rootPath, filePath: configPath },
+        apiMetadata,
       );
-      if (apiMetadata && configApi?.root) {
+
+      if (enrichedApiMetadata && configApi?.metadata) {
+        if (resolvedPath === configPath) {
+          configApi.metadata = enrichedApiMetadata;
+        } else {
+          await this.dumpToFs(resolvedPath, enrichedApiMetadata);
+        }
+      }
+
+      const enrichedMetadata = enrichedApiMetadata || enrichedRootMetadata;
+
+      if (enrichedMetadata && configApi?.root) {
         definitions.push({
           path: join(dirname(configPath), configApi.root),
           title: api,
-          metadata: apiMetadata,
+          metadata: enrichedMetadata,
         });
       }
     }
 
+    await this.dumpToFs(configPath, config);
+
     return definitions;
   }
 
-  private parseDefinitionByPath(
+  private async parseDefinitionByPath(
     definitionFilePath: string,
-  ): DiscoveredDefinition | undefined {
-    const definition =
-      this.parseFileByPath<OpenApiDefinition>(definitionFilePath);
-    const isOpenApi = Boolean(definition?.openapi || definition?.swagger);
-    const info = definition?.info;
-    const metadata = this.resolveMetadataRef(
-      info?.['x-metadata'],
+    rootPath: string,
+  ): Promise<DiscoveredDefinition | undefined> {
+    const definition = await this.parseFileByPath<OpenApiDefinition>(
       definitionFilePath,
     );
+    const isOpenApi = Boolean(definition?.openapi || definition?.swagger);
+    const info = definition?.info;
 
-    if (isOpenApi && metadata && info?.title) {
-      return {
-        path: definitionFilePath,
-        title: info.title,
+    if (isOpenApi && info?.title && info?.['x-metadata']) {
+      const { metadata, resolvedPath } = await this.resolveMetadataRef(
+        info['x-metadata'],
+        definitionFilePath,
+      );
+
+      const enrichedMetadata = this.definitionHooks.enrichMetadata(
+        { rootPath, filePath: definitionFilePath },
         metadata,
-      };
+      );
+
+      if (enrichedMetadata) {
+        if (resolvedPath === definitionFilePath) {
+          info['x-metadata'] = enrichedMetadata;
+          await this.dumpToFs(definitionFilePath, definition);
+        } else {
+          await this.dumpToFs(resolvedPath, enrichedMetadata);
+        }
+
+        return {
+          path: definitionFilePath,
+          title: info.title,
+          metadata: enrichedMetadata,
+        };
+      }
     }
     return;
   }
@@ -250,9 +312,9 @@ export class ApiDefinitionsService {
     return folderDefinitions.length > 1;
   }
 
-  private parseFileByPath<T>(filePath: string): T | undefined {
+  private async parseFileByPath<T>(filePath: string): Promise<T | undefined> {
     try {
-      const file = fs.readFileSync(filePath, 'utf8');
+      const file = await fs.readFile(filePath, { encoding: 'utf-8' });
       return load(file) as T;
     } catch (err) {
       this.logger.warn(
@@ -274,18 +336,23 @@ export class ApiDefinitionsService {
     );
   }
 
-  private resolveMetadataRef(
+  private async resolveMetadataRef(
     metadata: ApiDefinitionMetadata | undefined,
     definitionPath: string,
-  ): ApiDefinitionMetadata | undefined {
+  ): Promise<{
+    metadata: ApiDefinitionMetadata | undefined;
+    resolvedPath: string;
+  }> {
     if (metadata?.$ref) {
       const refPath = join(dirname(definitionPath), metadata?.$ref);
-      const refMetadata = this.parseFileByPath<ApiDefinitionMetadata>(refPath);
+      const refMetadata = await this.parseFileByPath<ApiDefinitionMetadata>(
+        refPath,
+      );
       // Handle nested refs
       return this.resolveMetadataRef(refMetadata, refPath);
     }
 
-    return metadata;
+    return { metadata, resolvedPath: definitionPath };
   }
 
   private getDefinitionTargetPath(

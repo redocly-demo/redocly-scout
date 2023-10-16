@@ -5,13 +5,15 @@ import { ConfigService } from '@nestjs/config';
 import { ConfigSchema } from '../config';
 import { ScoutJob } from './types';
 import { GitService } from '../git/git.service';
-import fs from 'fs';
+import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { RemotesService } from '../remotes/remotes.service';
 import path from 'path';
 import { ContentSource } from '../git/adapters/types';
 import { ApiDefinitionsService } from '../api-definitions/api-definitions.service';
 import { DefinitionsValidationService } from '../api-definitions/definitions-validation.service';
 import { HealthService } from '../healthcheck/health.service';
+import { TaskMetadata } from '../tasks/dto/update-task-status.dto';
 
 const HANDLE_JOB_INTERVAL = 5 * 1000; // 5 sec
 const TRIGGER_NEXT_JOB_POLL_TIMEOUT = 100; // 100 ms
@@ -63,12 +65,13 @@ export class JobsService {
     try {
       this.logger.log({ jobId: job.id, jobType: job.type }, 'Starting a job');
       this.activeJobs.set(job.id, job);
-      await this.handleJob(job);
+      const jobResultMetadata = await this.handleJob(job);
       try {
         this.logger.log({ jobId: job.id, jobType: job.type }, 'Job completed');
         await this.tasksService.updateStatus({
           id: job.id,
           status: 'COMPLETED',
+          metadata: jobResultMetadata,
         });
       } catch (err) {
         // Do not update job status to "FAILED" in case when job processed but status update failed
@@ -102,7 +105,7 @@ export class JobsService {
     }
   }
 
-  async handleJob(job: ScoutJob): Promise<void> {
+  async handleJob(job: ScoutJob): Promise<TaskMetadata | void> {
     switch (job.type) {
       case 'PROCESS_GIT_REPO':
         return this.handleProcessGitRepositoryJob(job);
@@ -113,16 +116,17 @@ export class JobsService {
     }
   }
 
-  async handleProcessGitRepositoryJob(job: ScoutJob) {
+  async handleProcessGitRepositoryJob(job: ScoutJob): Promise<TaskMetadata | void> {
     const sourceDetails = this.convertToContentSource(job);
     const jobWorkDir = this.getJobWorkDir(job, this.dataFolder);
     await this.gitService.checkout(sourceDetails, job.commitSha, jobWorkDir);
 
     try {
-      const discoveryResult = this.apiDefinitionsService.discoverApiDefinitions(
-        jobWorkDir,
-        this.apiFolder,
-      );
+      const discoveryResult =
+        await this.apiDefinitionsService.discoverApiDefinitions(
+          jobWorkDir,
+          this.apiFolder,
+        );
 
       await this.definitionsValidationService.publishValidationStartedStatus(
         job,
@@ -130,6 +134,7 @@ export class JobsService {
 
       const validationResults =
         await this.definitionsValidationService.validate(
+          job.id,
           discoveryResult.definitions,
         );
 
@@ -155,14 +160,16 @@ export class JobsService {
         sourceDetails,
       );
 
-      await this.remotesService.pushUploadTargets(
+      const remoteIds = await this.remotesService.pushUploadTargets(
         uploadTargets,
         job,
         commitDetails,
       );
+
+      return { remoteIds };
     } finally {
       this.logger.debug({ jobWorkDir, jobId: job.id }, 'Clean up job workdir');
-      fs.rmSync(jobWorkDir, { recursive: true, force: true });
+      fs.rm(jobWorkDir, { recursive: true, force: true });
     }
   }
 
@@ -189,8 +196,8 @@ export class JobsService {
       `${job.id}-${job.attempts.toString()}`,
     );
 
-    if (!fs.existsSync(jobWorkDir)) {
-      fs.mkdirSync(jobWorkDir, { recursive: true });
+    if (!existsSync(jobWorkDir)) {
+      fs.mkdir(jobWorkDir, { recursive: true });
     }
 
     return jobWorkDir;

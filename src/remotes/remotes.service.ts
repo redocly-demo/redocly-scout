@@ -15,6 +15,7 @@ import { getUploadTargetGroupFilesMap } from './push-files-helpers';
 import { DefinitionUploadTarget } from '../api-definitions/types';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
 import { getValueByPath } from './get-value-by-path';
+import { JOB_ID_HEADER } from '../common/constants';
 
 @Injectable()
 export class RemotesService {
@@ -50,13 +51,14 @@ export class RemotesService {
     const promises = [...uploadTargetGroups].map(
       async ([remoteMountPath, targets]) => {
         const remote = await this.upsertRemote({
+          jobId: job.id,
           mountPath: remoteMountPath,
           mountBranchName: this.mountBranchName,
           type: 'CICD',
           autoMerge: this.autoMerge,
         });
 
-        const files = getUploadTargetGroupFilesMap(targets);
+        const files = await getUploadTargetGroupFilesMap(targets);
         this.logger.debug(
           {
             jobId: job.id,
@@ -77,19 +79,24 @@ export class RemotesService {
           ...(jobContext ? { jobContext } : {}),
         };
 
-        return this.pushRemoteContentUpdate(remote.id, remoteContentUpdate);
+        await this.pushRemoteContentUpdate(remote.id, remoteContentUpdate);
+
+        return remote.id;
       },
     );
 
-    await Promise.all(promises);
+    return await Promise.all(promises);
   }
 
   @RetryOnFail
   private async upsertRemote(remote: RemoteConfig): Promise<Remote> {
     const url = `/orgs/${this.orgId}/portals/${this.portalId}/remotes`;
+    const headers = { [JOB_ID_HEADER]: remote.jobId };
 
     const upsertedRemote = await firstValueFrom(
-      this.httpService.post<Remote>(url, remote).pipe(map((res) => res.data)),
+      this.httpService
+        .post<Remote>(url, remote, { headers })
+        .pipe(map((res) => res.data)),
     );
 
     this.logger.debug({ remoteId: upsertedRemote.id }, 'Remote upserted');
@@ -103,7 +110,10 @@ export class RemotesService {
     update: RemoteContentUpdate,
   ): Promise<void> {
     const url = `/orgs/${this.orgId}/portals/${this.portalId}/remotes/${remoteId}/push`;
-    const headers = { 'Content-Type': 'multipart/form-data' };
+    const headers = {
+      'Content-Type': 'multipart/form-data',
+      [JOB_ID_HEADER]: update.jobId,
+    };
 
     const formData = serialize(update, {
       noAttributesWithArrayNotation: true,

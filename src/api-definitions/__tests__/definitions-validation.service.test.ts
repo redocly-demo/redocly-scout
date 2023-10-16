@@ -64,13 +64,16 @@ describe('DefinitionsValidationService', () => {
           envVariable === 'REDOCLY_DEST_FOLDER_PATH' ? destinationPath : '',
         );
 
-      const validationResults = await definitionsValidationService.validate([
-        {
-          path: '',
-          title: 'Petstore',
-          metadata: { team: 'teamA' },
-        },
-      ]);
+      const validationResults = await definitionsValidationService.validate(
+        'jobId',
+        [
+          {
+            path: '',
+            title: 'Petstore',
+            metadata: { team: 'teamA' },
+          },
+        ],
+      );
 
       expect(validationResults).toHaveLength(1);
       expect(validationResults[0]?.result.isValid).toBeFalsy();
@@ -101,13 +104,16 @@ describe('DefinitionsValidationService', () => {
           envVariable === 'REDOCLY_DEST_FOLDER_PATH' ? destinationPath : '',
         );
 
-      const validationResults = await definitionsValidationService.validate([
-        {
-          path: '',
-          title: 'Petstore',
-          metadata: { team: 'teamA' },
-        },
-      ]);
+      const validationResults = await definitionsValidationService.validate(
+        'jobId',
+        [
+          {
+            path: '',
+            title: 'Petstore',
+            metadata: { team: 'teamA' },
+          },
+        ],
+      );
 
       expect(validationResults).toHaveLength(1);
       expect(validationResults[0]?.result.isValid).toBeTruthy();
