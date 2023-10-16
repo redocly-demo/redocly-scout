@@ -105,7 +105,7 @@ export class JobsService {
     }
   }
 
-  async handleJob(job: ScoutJob): Promise<TaskMetadata | void> {
+  async handleJob(job: ScoutJob): Promise<TaskMetadata | undefined> {
     switch (job.type) {
       case 'PROCESS_GIT_REPO':
         return this.handleProcessGitRepositoryJob(job);
@@ -116,7 +116,9 @@ export class JobsService {
     }
   }
 
-  async handleProcessGitRepositoryJob(job: ScoutJob): Promise<TaskMetadata | void> {
+  async handleProcessGitRepositoryJob(
+    job: ScoutJob,
+  ): Promise<TaskMetadata | undefined> {
     const sourceDetails = this.convertToContentSource(job);
     const jobWorkDir = this.getJobWorkDir(job, this.dataFolder);
     await this.gitService.checkout(sourceDetails, job.commitSha, jobWorkDir);
@@ -177,7 +179,7 @@ export class JobsService {
     const { commitSha, checks } = job;
     if (!checks) {
       this.logger.warn({ jobId: job.id }, 'No checks in job');
-      return;
+      return undefined;
     }
     const sourceDetails = this.convertToContentSource(job);
     await this.gitService.upsertCommitStatuses(
