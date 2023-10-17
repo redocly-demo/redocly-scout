@@ -62,7 +62,7 @@ async function getFolderFilesMap({
     } else if (entry.isDirectory()) {
       Object.assign(
         files,
-        getFolderFilesMap({
+        await getFolderFilesMap({
           folderPath: entryPath,
           rootPath,
           targetPath,

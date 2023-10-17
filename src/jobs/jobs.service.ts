@@ -140,11 +140,17 @@ export class JobsService {
           discoveryResult.definitions,
         );
 
+      const validationSummary =
+        this.definitionsValidationService.getValidationSummary(
+          validationResults,
+          discoveryResult,
+          job.commitSha,
+          jobWorkDir,
+        );
+
       await this.definitionsValidationService.publishValidationResults(
-        validationResults,
-        discoveryResult,
+        validationSummary,
         job,
-        jobWorkDir,
       );
 
       if (validationResults.some(({ result }) => !result.isValid)) {
@@ -162,13 +168,19 @@ export class JobsService {
         sourceDetails,
       );
 
-      const remoteIds = await this.remotesService.pushUploadTargets(
+      const pushResults = await this.remotesService.pushUploadTargets(
         uploadTargets,
         job,
         commitDetails,
       );
 
-      return { remoteIds };
+      await this.definitionsValidationService.publishPushResults(
+        pushResults,
+        validationSummary,
+        job,
+      );
+
+      return { remoteIds: pushResults.map((r) => r.remoteId) };
     } finally {
       this.logger.debug({ jobWorkDir, jobId: job.id }, 'Clean up job workdir');
       fs.rm(jobWorkDir, { recursive: true, force: true });

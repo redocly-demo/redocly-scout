@@ -21,7 +21,7 @@ import { ConfigSchema } from '../config';
 import { DefinitionHooksService } from './definition-hooks.service';
 
 export const REDOCLY_CONFIG_FILENAME = 'redocly.yaml';
-const OPENAPI_DEFINITION_EXTENSIONS = ['json', 'yaml', 'yml'];
+export const OPENAPI_DEFINITION_EXTENSIONS = ['json', 'yaml', 'yml'];
 
 @Injectable()
 export class ApiDefinitionsService {

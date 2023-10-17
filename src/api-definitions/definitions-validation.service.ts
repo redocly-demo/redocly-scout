@@ -18,7 +18,7 @@ import { GitService } from '../git/git.service';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
 import { getValueByPath } from '../remotes/get-value-by-path';
 import { JOB_ID_HEADER } from '../common/constants';
-import { REDOCLY_CONFIG_FILENAME } from './api-definitions.service';
+import { PushRemoteResult } from '../remotes/types';
 
 @Injectable()
 export class DefinitionsValidationService {
@@ -53,10 +53,8 @@ export class DefinitionsValidationService {
 
   @RetryOnFail
   async publishValidationResults(
-    validationResults: DefinitionValidationResult[],
-    discoveryResult: DefinitionDiscoveryResult,
+    { details, status, message }: ValidationSummary,
     job: ScoutJob,
-    jobWorkDir: string,
   ) {
     const sourceDetails = {
       providerType: job.providerType,
@@ -64,12 +62,6 @@ export class DefinitionsValidationService {
       repositoryId: job.repositoryId,
       branchName: job.branch,
     };
-    const { status, details, message } = this.getValidationSummary(
-      validationResults,
-      discoveryResult,
-      job.commitSha,
-      jobWorkDir,
-    );
 
     await this.gitService.upsertSummaryComment(
       details,
@@ -111,7 +103,31 @@ export class DefinitionsValidationService {
     );
   }
 
-  private getValidationSummary(
+  async publishPushResults(
+    results: PushRemoteResult[],
+    validationSummary: ValidationSummary,
+    job: ScoutJob,
+  ) {
+    const noOpenapiWarning = results.some((result) => !result.containsApiSpecs);
+
+    const sourceDetails = {
+      providerType: job.providerType,
+      namespaceId: job.namespaceId,
+      repositoryId: job.repositoryId,
+      branchName: job.branch,
+    };
+
+    if (noOpenapiWarning) {
+      await this.gitService.upsertSummaryComment(
+        `${validationSummary.details}\n\n>[!WARNING]\n>API spec file not found`,
+        sourceDetails,
+        job.commitSha,
+        job.prId,
+      );
+    }
+  }
+
+  getValidationSummary(
     results: DefinitionValidationResult[],
     discoveryResult: DefinitionDiscoveryResult,
     commitSha: string,
@@ -126,12 +142,9 @@ export class DefinitionsValidationService {
     if (results.length > 0) {
       const success = results.every(({ result }) => result.isValid);
 
-      const hasOpenapiFiles = discoveryResult.definitions.filter(({ path }) => !path.endsWith(REDOCLY_CONFIG_FILENAME)).length > 0;
-      const noOpenapiWarning = hasOpenapiFiles ? '' : '\n\n>[!WARNING]\n>API spec file not found';
-
       return {
         message: `Metadata validation ${success ? 'successful' : 'failed'}`,
-        details: `${detailsHeader}${filesDetails.join('\n\n')}${noOpenapiWarning}`,
+        details: `${detailsHeader}${filesDetails.join('\n\n')}`,
         status: success ? 'SUCCEEDED' : 'FAILED',
       };
     }
