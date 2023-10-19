@@ -185,7 +185,9 @@ export class GitHubCloudClient implements GitAdapter {
         email: data.commit.author?.email || '',
         image: data.author?.avatar_url || '',
       },
-      ...(data.commit.author?.date ? { createdAt: data.commit.author.date } : {}),
+      ...(data.commit.author?.date
+        ? { createdAt: data.commit.author.date }
+        : {}),
     };
   }
 
@@ -228,17 +230,31 @@ export class GitHubCloudClient implements GitAdapter {
     sourceDetails: ContentSource,
     commitSha: string,
     prId?: string,
+    override = true,
   ) {
     if (prId) {
-      return this.upsertPrComment(text, prId, sourceDetails);
+      return this.upsertPrComment(text, prId, sourceDetails, override);
     }
-    return this.upsertCommitComment(text, commitSha, sourceDetails);
+    return this.upsertCommitComment(text, commitSha, sourceDetails, override);
+  }
+
+  public async getSummaryComment(
+    sourceDetails: ContentSource,
+    commitSha: string,
+    prId?: string,
+  ): Promise<string> {
+    const comment = prId
+      ? await this.getExistingPrComment(prId, sourceDetails)
+      : await this.getExistingCommitComment(commitSha, sourceDetails);
+
+    return comment?.body || '';
   }
 
   public async upsertPrComment(
     text: string,
     prId: string,
     sourceDetails: ContentSource,
+    override = true,
   ) {
     const client = await this.getInstallationClient(sourceDetails);
 
@@ -249,7 +265,7 @@ export class GitHubCloudClient implements GitAdapter {
         repo: sourceDetails.repositoryId,
         comment_id: comment.id,
         issue_number: parseInt(prId),
-        body: text,
+        body: !override && comment.body ? `${comment.body}\n${text}` : text,
       });
     } else {
       await client.rest.issues.createComment({
@@ -290,6 +306,7 @@ export class GitHubCloudClient implements GitAdapter {
     text: string,
     commitSha: string,
     sourceDetails: ContentSource,
+    override = true,
   ) {
     const client = await this.getInstallationClient(sourceDetails);
 
@@ -303,7 +320,7 @@ export class GitHubCloudClient implements GitAdapter {
         owner: sourceDetails.namespaceId,
         repo: sourceDetails.repositoryId,
         comment_id: comment.id,
-        body: text,
+        body: !override && comment.body ? `${comment.body}\n${text}` : text,
       });
     } else {
       await client.rest.repos.createCommitComment({

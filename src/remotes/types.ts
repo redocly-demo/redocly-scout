@@ -36,8 +36,3 @@ export type RemoteContentUpdate = {
   replace: boolean;
   files: Record<string, File>;
 };
-
-export type PushRemoteResult = {
-  remoteId: string;
-  containsApiSpecs: boolean;
-};

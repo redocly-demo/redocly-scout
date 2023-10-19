@@ -18,7 +18,6 @@ import { GitService } from '../git/git.service';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
 import { getValueByPath } from '../remotes/get-value-by-path';
 import { JOB_ID_HEADER } from '../common/constants';
-import { PushRemoteResult } from '../remotes/types';
 
 @Injectable()
 export class DefinitionsValidationService {
@@ -53,8 +52,10 @@ export class DefinitionsValidationService {
 
   @RetryOnFail
   async publishValidationResults(
-    { details, status, message }: ValidationSummary,
+    validationResults: DefinitionValidationResult[],
+    discoveryResult: DefinitionDiscoveryResult,
     job: ScoutJob,
+    jobWorkDir: string,
   ) {
     const sourceDetails = {
       providerType: job.providerType,
@@ -62,6 +63,13 @@ export class DefinitionsValidationService {
       repositoryId: job.repositoryId,
       branchName: job.branch,
     };
+
+    const { status, details, message } = this.getValidationSummary(
+      validationResults,
+      discoveryResult,
+      job.commitSha,
+      jobWorkDir,
+    );
 
     await this.gitService.upsertSummaryComment(
       details,
@@ -103,30 +111,6 @@ export class DefinitionsValidationService {
     );
   }
 
-  async publishPushResults(
-    results: PushRemoteResult[],
-    validationSummary: ValidationSummary,
-    job: ScoutJob,
-  ) {
-    const noOpenapiWarning = results.some((result) => !result.containsApiSpecs);
-
-    const sourceDetails = {
-      providerType: job.providerType,
-      namespaceId: job.namespaceId,
-      repositoryId: job.repositoryId,
-      branchName: job.branch,
-    };
-
-    if (noOpenapiWarning) {
-      await this.gitService.upsertSummaryComment(
-        `${validationSummary.details}\n\n>[!WARNING]\n>API spec file not found`,
-        sourceDetails,
-        job.commitSha,
-        job.prId,
-      );
-    }
-  }
-
   getValidationSummary(
     results: DefinitionValidationResult[],
     discoveryResult: DefinitionDiscoveryResult,
@@ -137,7 +121,7 @@ export class DefinitionsValidationService {
       this.getValidationResultMessage(result, rootPath),
     );
 
-    const detailsHeader = `### Redocly scout: metadata validation\n\nCommit: ${commitSha}\n\n`;
+    const detailsHeader = `### Redocly scout\n\nCommit: ${commitSha}\n\n## Metadata validation\n\n`;
 
     if (results.length > 0) {
       const success = results.every(({ result }) => result.isValid);
@@ -191,11 +175,15 @@ export class DefinitionsValidationService {
     rootPath: string,
   ): string {
     const definitionPath = relative(rootPath, definition.path);
+    const warning = definition.empty
+      ? '\n\n>[!WARNING]\n>API spec file not found'
+      : '';
+
     if (result.isValid) {
-      return `**${definitionPath}** ✅`;
+      return `**${definitionPath}** ✅${warning}`;
     }
     const errors = JSON.stringify(result.errors, null, 2);
-    return `<details><summary><b>${definitionPath}</b> ❌</summary>\n\n\`\`\`json\n${errors}\n\`\`\`\n</details>`;
+    return `<details><summary><b>${definitionPath}</b> ❌</summary>\n\n\`\`\`json\n${errors}\n\`\`\`\n</details>${warning}`;
   }
 
   @RetryOnFail

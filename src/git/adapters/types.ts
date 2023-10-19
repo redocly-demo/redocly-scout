@@ -41,6 +41,12 @@ export interface GitAdapter {
     sourceDetails: ContentSource,
     commitSha: string,
     prId?: string,
+    override?: boolean,
   ): Promise<void>;
+  getSummaryComment(
+    sourceDetails: ContentSource,
+    commitSha: string,
+    prId?: string,
+  ): Promise<string>;
   checkConnectivity(): Promise<boolean>;
 }

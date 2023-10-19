@@ -3,26 +3,19 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, map } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 import { serialize } from 'object-to-formdata';
-import { File } from 'buffer';
-import { load } from 'js-yaml';
 import { ConfigSchema } from '../config';
 import {
   RemoteConfig,
   RemoteContentUpdate,
   Remote,
   CommitDetails,
-  PushRemoteResult,
 } from './types';
 import { ScoutJob } from '../jobs/types';
 import { getUploadTargetGroupFilesMap } from './push-files-helpers';
-import {
-  DefinitionUploadTarget,
-  OpenApiDefinition,
-} from '../api-definitions/types';
+import { DefinitionUploadTarget } from '../api-definitions/types';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
 import { getValueByPath } from './get-value-by-path';
 import { JOB_ID_HEADER } from '../common/constants';
-import { OPENAPI_DEFINITION_EXTENSIONS } from '../api-definitions/api-definitions.service';
 
 @Injectable()
 export class RemotesService {
@@ -48,7 +41,7 @@ export class RemotesService {
     uploadTargets: DefinitionUploadTarget[],
     job: ScoutJob,
     commit: CommitDetails,
-  ): Promise<PushRemoteResult[]> {
+  ): Promise<string[]> {
     const uploadTargetGroups = new Map<string, DefinitionUploadTarget[]>();
     for (const target of uploadTargets) {
       const groupItems = uploadTargetGroups.get(target.remoteMountPath) || [];
@@ -87,9 +80,7 @@ export class RemotesService {
         };
 
         await this.pushRemoteContentUpdate(remote.id, remoteContentUpdate);
-        const containsApiSpecs = await this.containsApiSpecs(files);
-
-        return { remoteId: remote.id, containsApiSpecs };
+        return remote.id;
       },
     );
 
@@ -145,24 +136,5 @@ export class RemotesService {
         (_, path) =>
           getValueByPath(path, uploadTarget.metadata)?.toString() || '',
       );
-  }
-
-  async containsApiSpecs(files: Record<string, File>) {
-    for (const [filePath, file] of Object.entries(files)) {
-      if (filePath.endsWith('.wsdl')) {
-        return true;
-      } else if (
-        OPENAPI_DEFINITION_EXTENSIONS.some((ext) => filePath.endsWith(ext))
-      ) {
-        try {
-          const definition = load(await file.text()) as OpenApiDefinition;
-          if (definition?.openapi || definition?.swagger) {
-            return true;
-          }
-        } catch (err) {}
-      }
-    }
-
-    return false;
   }
 }

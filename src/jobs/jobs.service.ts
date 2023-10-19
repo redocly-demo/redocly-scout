@@ -140,17 +140,11 @@ export class JobsService {
           discoveryResult.definitions,
         );
 
-      const validationSummary =
-        this.definitionsValidationService.getValidationSummary(
-          validationResults,
-          discoveryResult,
-          job.commitSha,
-          jobWorkDir,
-        );
-
       await this.definitionsValidationService.publishValidationResults(
-        validationSummary,
+        validationResults,
+        discoveryResult,
         job,
+        jobWorkDir,
       );
 
       if (validationResults.some(({ result }) => !result.isValid)) {
@@ -168,19 +162,13 @@ export class JobsService {
         sourceDetails,
       );
 
-      const pushResults = await this.remotesService.pushUploadTargets(
+      const remoteIds = await this.remotesService.pushUploadTargets(
         uploadTargets,
         job,
         commitDetails,
       );
 
-      await this.definitionsValidationService.publishPushResults(
-        pushResults,
-        validationSummary,
-        job,
-      );
-
-      return { remoteIds: pushResults.map((r) => r.remoteId) };
+      return { remoteIds };
     } finally {
       this.logger.debug({ jobWorkDir, jobId: job.id }, 'Clean up job workdir');
       fs.rm(jobWorkDir, { recursive: true, force: true });
@@ -199,6 +187,37 @@ export class JobsService {
       checks,
       sourceDetails,
     );
+
+    const checkLogs = checks
+      .filter((check) => check.status === 'FAILED' && check.logs?.length)
+      .map(
+        ({ name, description, logs }) =>
+          `<details><summary><b>${name} - ${description}</b> ❌</summary>\n\n\`\`\`\n${logs
+            ?.map(({ log, date }) => `${date} ${log}`)
+            .join('\n')}\n\`\`\`\n</details>`,
+      )
+      .join('\n');
+
+    if (checkLogs) {
+      const existingComment = await this.gitService.getSummaryComment(
+        sourceDetails,
+        job.commitSha,
+        job.prId,
+      );
+
+      if (existingComment.includes(job.commitSha)) {
+        const header = existingComment.includes('Failed checks')
+          ? ''
+          : '\n\n## Failed checks';
+        await this.gitService.upsertSummaryComment(
+          `${header}\n\n${checkLogs}`,
+          sourceDetails,
+          job.commitSha,
+          job.prId,
+          false,
+        );
+      }
+    }
   }
 
   private getJobWorkDir(job: ScoutJob, rootPath: string): string {

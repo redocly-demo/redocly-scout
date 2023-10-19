@@ -97,12 +97,19 @@ export class GitService {
     sourceDetails: ContentSource,
     commitSha: string,
     prId?: string,
+    override?: boolean,
   ) {
     const { namespaceId, repositoryId, branchName } = sourceDetails;
     const gitAdapter = this.gitAdaptersFactory.getAdapter(
       sourceDetails.providerType,
     );
-    await gitAdapter.upsertSummaryComment(text, sourceDetails, commitSha, prId);
+    await gitAdapter.upsertSummaryComment(
+      text,
+      sourceDetails,
+      commitSha,
+      prId,
+      override,
+    );
 
     this.logger.debug(
       { commitSha, namespaceId, repositoryId, branchName, prId },
@@ -116,5 +123,17 @@ export class GitService {
     const gitAdapter = this.gitAdaptersFactory.getAdapter(provider);
 
     return await gitAdapter.checkConnectivity();
+  }
+
+  public async getSummaryComment(
+    sourceDetails: ContentSource,
+    commitSha: string,
+    prId?: string,
+  ): Promise<string> {
+    const gitAdapter = this.gitAdaptersFactory.getAdapter(
+      sourceDetails.providerType,
+    );
+
+    return gitAdapter.getSummaryComment(sourceDetails, commitSha, prId);
   }
 }

@@ -22,6 +22,14 @@ export const CommitCheckSchema = z.object({
   status: CommitCheckStatusSchema,
   description: z.string().optional(),
   targetUrl: z.string().optional(),
+  logs: z
+    .array(
+      z.object({
+        log: z.string(),
+        date: z.date(),
+      }),
+    )
+    .optional(),
 });
 
 export const ScoutJobSchema = z.object({

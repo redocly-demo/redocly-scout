@@ -54,8 +54,9 @@ export class ApiDefinitionsService {
           rootPath,
         );
         for (const definition of configDefinitions) {
+          const empty = !(await this.containsApiSpec(definition.path, files));
           if (!definitions.has(definition.path)) {
-            definitions.set(definition.path, definition);
+            definitions.set(definition.path, { ...definition, empty });
           }
         }
       } else if (this.isOpenApiFileExt(filePath)) {
@@ -389,5 +390,28 @@ export class ApiDefinitionsService {
     ].join('/');
 
     return { targetPath, remoteMountPath };
+  }
+
+  private async containsApiSpec(definitionPath: string, files: string[]) {
+    const definitionFolder = dirname(definitionPath);
+    const definitionFiles = files.filter((filePath) =>
+      filePath.startsWith(definitionFolder),
+    );
+    for (const filePath of definitionFiles) {
+      if (filePath.endsWith('.wsdl')) {
+        return true;
+      } else if (
+        OPENAPI_DEFINITION_EXTENSIONS.some((ext) => filePath.endsWith(ext))
+      ) {
+        const definition = await this.parseFileByPath<OpenApiDefinition>(
+          filePath,
+        );
+        if (definition?.openapi || definition?.swagger) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 }

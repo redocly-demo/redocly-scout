@@ -51,6 +51,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
           metadata: { team: 'redocly' },
         },
         {
+          empty: false,
           path: `${apiDocsPath}/spec/@v3/petstore.yaml`,
           title: 'petstore',
           metadata: { owner: 'redocly' },
@@ -81,6 +82,7 @@ describe('ApiDefinitionsDiscoveryService', () => {
           metadata: { department: 'Business & Money', owner: 'redocly' },
         },
         {
+          empty: false,
           path: `${apiDocsPath}/petstore/redocly.yaml`,
           title: 'petstore',
           metadata: { department: 'Business & Money', owner: 'redocly' },

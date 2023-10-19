@@ -5,6 +5,7 @@ import { DefinitionsValidationService } from '../definitions-validation.service'
 import { AxiosResponse } from 'axios';
 import { of } from 'rxjs';
 import { GitService } from '../../git/git.service';
+import { ScoutJob } from '../../jobs/types';
 import {
   DefinitionDiscoveryResult,
   DefinitionValidationResult,
@@ -14,6 +15,7 @@ describe('DefinitionsValidationService', () => {
   let definitionsValidationService: DefinitionsValidationService;
   let httpService: HttpService;
   let configService: ConfigService;
+  let gitService: GitService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -35,6 +37,7 @@ describe('DefinitionsValidationService', () => {
     );
     httpService = module.get<HttpService>(HttpService);
     configService = module.get<ConfigService>(ConfigService);
+    gitService = module.get<GitService>(GitService);
   });
 
   afterEach(() => {
@@ -118,43 +121,83 @@ describe('DefinitionsValidationService', () => {
     });
   });
 
-  describe('getValidationSummary', () => {
+  describe('publishValidationResults', () => {
     const commitSha = 'ae10er';
 
+    const scoutJob = {
+      branch: 'test-branch',
+      namespaceId: 'test-org',
+      providerType: 'GITHUB_CLOUD',
+      repositoryId: 'test-repo',
+      commitSha,
+      prId: '1',
+    } as ScoutJob;
+
+    const sourceDetails = {
+      branchName: scoutJob.branch,
+      namespaceId: scoutJob.namespaceId,
+      providerType: scoutJob.providerType,
+      repositoryId: scoutJob.repositoryId,
+    };
+
     it('should publish redocly.yaml file not found when there are no definitions', async () => {
-      const summary = definitionsValidationService.getValidationSummary(
+      await definitionsValidationService.publishValidationResults(
         [],
         {} as DefinitionDiscoveryResult,
-        commitSha,
+        scoutJob,
         '',
       );
-
-      expect(summary).toEqual({
-        details:
-          '### Redocly scout: metadata validation\n\nCommit: ae10er\n\nredocly.yaml file not found',
-        message: 'redocly.yaml file not found',
+      const expectedStatus = {
+        description: 'redocly.yaml file not found',
+        name: 'Redocly Scout',
         status: 'FAILED',
-      });
+      };
+
+      const expectedComment = `### Redocly scout\n\nCommit: ae10er\n\n## Metadata validation\n\nredocly.yaml file not found`;
+
+      expect(gitService.upsertCommitStatuses).toHaveBeenCalledWith(
+        commitSha,
+        [expectedStatus],
+        sourceDetails,
+      );
+      expect(gitService.upsertSummaryComment).toHaveBeenCalledWith(
+        expectedComment,
+        sourceDetails,
+        commitSha,
+        scoutJob.prId,
+      );
     });
 
     it('should publish redocly.yaml metadata not found when there is redocly.yaml without metadata', async () => {
-      const summary = definitionsValidationService.getValidationSummary(
+      await definitionsValidationService.publishValidationResults(
         [],
         { hasRedoclyConfig: true } as DefinitionDiscoveryResult,
-        commitSha,
+        scoutJob,
         '',
       );
-
-      expect(summary).toEqual({
-        details:
-          '### Redocly scout: metadata validation\n\nCommit: ae10er\n\nmetadata.yaml not found',
-        message: 'metadata.yaml not found',
+      const expectedStatus = {
+        description: 'metadata.yaml not found',
+        name: 'Redocly Scout',
         status: 'FAILED',
-      });
+      };
+
+      const expectedComment = `### Redocly scout\n\nCommit: ae10er\n\n## Metadata validation\n\nmetadata.yaml not found`;
+
+      expect(gitService.upsertCommitStatuses).toHaveBeenCalledWith(
+        commitSha,
+        [expectedStatus],
+        sourceDetails,
+      );
+      expect(gitService.upsertSummaryComment).toHaveBeenCalledWith(
+        expectedComment,
+        sourceDetails,
+        commitSha,
+        scoutJob.prId,
+      );
     });
 
     it('should publish success when there is redocly.yaml with metadata', async () => {
-      const summary = definitionsValidationService.getValidationSummary(
+      await definitionsValidationService.publishValidationResults(
         [
           {
             result: { isValid: true },
@@ -166,16 +209,28 @@ describe('DefinitionsValidationService', () => {
           },
         ] as DefinitionValidationResult[],
         { hasRedoclyConfig: true } as DefinitionDiscoveryResult,
-        commitSha,
+        scoutJob,
         '',
       );
-
-      expect(summary).toEqual({
-        details:
-          '### Redocly scout: metadata validation\n\nCommit: ae10er\n\n**redocly.yaml** ✅',
-        message: 'Metadata validation successful',
+      const expectedStatus = {
+        description: 'Metadata validation successful',
+        name: 'Redocly Scout',
         status: 'SUCCEEDED',
-      });
+      };
+
+      const expectedComment = `### Redocly scout\n\nCommit: ae10er\n\n## Metadata validation\n\n**redocly.yaml** ✅`;
+
+      expect(gitService.upsertCommitStatuses).toHaveBeenCalledWith(
+        commitSha,
+        [expectedStatus],
+        sourceDetails,
+      );
+      expect(gitService.upsertSummaryComment).toHaveBeenCalledWith(
+        expectedComment,
+        sourceDetails,
+        commitSha,
+        scoutJob.prId,
+      );
     });
   });
 });

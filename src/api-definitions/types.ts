@@ -28,6 +28,7 @@ export type DiscoveredDefinition = {
   path: string;
   title: string;
   metadata: ApiDefinitionMetadata;
+  empty?: boolean;
 };
 
 export type DefinitionDiscoveryResult = {
