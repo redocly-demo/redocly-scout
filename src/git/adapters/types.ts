@@ -27,6 +27,7 @@ export interface GenericWebhookEvent {
 
 export interface GitAdapter {
   getCloneUrl(sourceDetails: ContentSource): Promise<string>;
+  getPRRef(prId: string): string;
   upsertCommitStatuses(
     commitSha: string,
     checks: CommitCheck[],

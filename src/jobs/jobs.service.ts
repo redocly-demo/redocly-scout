@@ -121,9 +121,15 @@ export class JobsService {
   ): Promise<TaskMetadata | undefined> {
     const sourceDetails = this.convertToContentSource(job);
     const jobWorkDir = this.getJobWorkDir(job, this.dataFolder);
-    await this.gitService.checkout(sourceDetails, job.commitSha, jobWorkDir);
 
     try {
+      await this.gitService.checkout(
+        sourceDetails,
+        job.prId,
+        job.commitSha,
+        jobWorkDir,
+      );
+
       const discoveryResult =
         await this.apiDefinitionsService.discoverApiDefinitions(
           jobWorkDir,

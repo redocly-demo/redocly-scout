@@ -83,7 +83,7 @@ export class GitHubCloudClient implements GitAdapter {
       return response.data.token;
     } catch (e) {
       // Remove installation id from the cache on fail, so on the next try it should be populated from api
-      if (e.status === 404) {
+      if (e.status === 404 || e.status === 401 || e.status === 403) {
         const key = this.getInstallationIdCacheKey(sourceDetails);
         this.cache.delete(key);
       }
@@ -135,6 +135,10 @@ export class GitHubCloudClient implements GitAdapter {
     const token = await this.getToken(sourceDetails);
 
     return `https://oauth2:${token}@${baseUrl.host}/${namespaceId}/${repositoryId}.git`;
+  }
+
+  public getPRRef(prId: string): string {
+    return `pull/${prId}/head`;
   }
 
   public async upsertCommitStatuses(

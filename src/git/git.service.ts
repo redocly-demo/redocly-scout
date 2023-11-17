@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import { Injectable, Logger } from '@nestjs/common';
 import { ContentSource, GitProvider } from './adapters/types';
 import { simpleGit } from 'simple-git';
@@ -23,33 +24,44 @@ export class GitService {
   @RetryOnFail
   async checkout(
     sourceDetails: ContentSource,
+    prId: string | undefined,
     commitSha: string,
     repositoryPath: string,
   ) {
-    const { namespaceId, repositoryId, branchName } = sourceDetails;
-    const gitAdapter = this.gitAdaptersFactory.getAdapter(
-      sourceDetails.providerType,
-    );
-    const cloneUrl = await gitAdapter.getCloneUrl(sourceDetails);
+    try {
+      const { namespaceId, repositoryId, branchName } = sourceDetails;
+      const gitAdapter = this.gitAdaptersFactory.getAdapter(
+        sourceDetails.providerType,
+      );
+      const cloneUrl = await gitAdapter.getCloneUrl(sourceDetails);
 
-    const git = this.getGit(repositoryPath);
+      const git = this.getGit(repositoryPath);
 
-    // Clone branch and checkout to selected commit
-    await git.clone(cloneUrl, repositoryPath, [
-      '-b',
-      branchName,
-      '--single-branch',
-    ]);
-    this.logger.debug(
-      { namespaceId, repositoryId, branchName },
-      'Repository cloned',
-    );
+      // Clone branch and checkout to selected commit
+      await git.clone(cloneUrl, repositoryPath, ['--depth=1']);
+      this.logger.debug(
+        { namespaceId, repositoryId, branchName },
+        'Repository cloned',
+      );
 
-    await git.checkout(commitSha);
-    this.logger.debug(
-      { commitSha, namespaceId, repositoryId, branchName },
-      'Checkout to commit',
-    );
+      const ref = prId ? gitAdapter.getPRRef(prId) : branchName;
+      await git.fetch('origin', ref);
+      this.logger.debug(
+        { namespaceId, repositoryId, branchName, ref },
+        'Ref fetched',
+      );
+
+      await git.checkout(commitSha);
+      this.logger.debug(
+        { commitSha, namespaceId, repositoryId, branchName },
+        'Checkout to commit',
+      );
+    } catch (error) {
+      // Clean up repository folder if checkout failed
+      await fs.rm(repositoryPath, { recursive: true, force: true });
+      await fs.mkdir(repositoryPath, { recursive: true });
+      throw error;
+    }
   }
 
   @RetryOnFail

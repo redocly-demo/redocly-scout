@@ -33,7 +33,7 @@ To run Scout in GitHub, you need to setup a GitHub application.
     - Webhook URL: `https://{scout-url}/webhooks/github`
     - Secret: any value, you need to provide same value to Scout config WEBHOOK_SECRET field
     - Repository permissions:
-      - Contents: `read-only`
+      - Contents: `read and write`
       - Pull requests: `read and write`
       - Commit statuses: `read and write`
     - User permissions:
