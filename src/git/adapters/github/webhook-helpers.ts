@@ -50,19 +50,24 @@ export function parsePullRequestEvent(
     const branchName = payload.pull_request.head.ref;
     const mainBranchName =
       payload.repository.master_branch || payload.repository.default_branch;
+
+    const isFork = payload.pull_request.head.repo?.fork;
+
     return {
       type: `${event}.${payload.action}`,
       source: {
         providerType: getProviderTypeByUrl(payload.repository.git_url),
         namespaceId: payload.repository.owner.login,
         repositoryId: payload.repository.name,
-        branchName: branchName,
+        branchName: isFork
+          ? `fork_pr_${payload.number}_${branchName}`
+          : branchName,
       },
       commit: {
         sha: payload.pull_request.head.sha,
       },
       prId: payload.pull_request.number.toString(),
-      isMainBranch: branchName === mainBranchName,
+      isMainBranch: branchName === mainBranchName && !isFork,
     };
   }
   return;

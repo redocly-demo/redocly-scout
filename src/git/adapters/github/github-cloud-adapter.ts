@@ -312,27 +312,31 @@ export class GitHubCloudClient implements GitAdapter {
     sourceDetails: ContentSource,
     override = true,
   ) {
-    const client = await this.getInstallationClient(sourceDetails);
+    try {
+      const client = await this.getInstallationClient(sourceDetails);
 
-    const comment = await this.getExistingCommitComment(
-      commitSha,
-      sourceDetails,
-    );
+      const comment = await this.getExistingCommitComment(
+        commitSha,
+        sourceDetails,
+      );
 
-    if (comment) {
-      await client.rest.repos.updateCommitComment({
-        owner: sourceDetails.namespaceId,
-        repo: sourceDetails.repositoryId,
-        comment_id: comment.id,
-        body: !override && comment.body ? `${comment.body}\n${text}` : text,
-      });
-    } else {
-      await client.rest.repos.createCommitComment({
-        owner: sourceDetails.namespaceId,
-        repo: sourceDetails.repositoryId,
-        commit_sha: commitSha,
-        body: text,
-      });
+      if (comment) {
+        await client.rest.repos.updateCommitComment({
+          owner: sourceDetails.namespaceId,
+          repo: sourceDetails.repositoryId,
+          comment_id: comment.id,
+          body: !override && comment.body ? `${comment.body}\n${text}` : text,
+        });
+      } else {
+        await client.rest.repos.createCommitComment({
+          owner: sourceDetails.namespaceId,
+          repo: sourceDetails.repositoryId,
+          commit_sha: commitSha,
+          body: text,
+        });
+      }
+    } catch (e) {
+      this.logger.error({ err: e }, 'Could not upsert commit comment');
     }
   }
 
