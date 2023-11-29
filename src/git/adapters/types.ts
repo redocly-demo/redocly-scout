@@ -6,6 +6,7 @@ import { CommitDetails } from '../../remotes/types';
 export type GitProvider = z.infer<typeof GitProviderTypeSchema>;
 
 export type ContentSource = {
+  providerId: string;
   providerType: GitProvider;
   namespaceId: string;
   repositoryId: string;
@@ -49,5 +50,5 @@ export interface GitAdapter {
     commitSha: string,
     prId?: string,
   ): Promise<string>;
-  checkConnectivity(): Promise<boolean>;
+  checkConnectivity(providerId: string): Promise<boolean>;
 }

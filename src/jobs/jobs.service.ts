@@ -120,7 +120,7 @@ export class JobsService {
     job: ScoutJob,
   ): Promise<TaskMetadata | undefined> {
     const sourceDetails = this.convertToContentSource(job);
-    const jobWorkDir = this.getJobWorkDir(job, this.dataFolder);
+    const jobWorkDir = await this.getJobWorkDir(job, this.dataFolder);
 
     try {
       await this.gitService.checkout(
@@ -226,7 +226,10 @@ export class JobsService {
     }
   }
 
-  private getJobWorkDir(job: ScoutJob, rootPath: string): string {
+  private async getJobWorkDir(
+    job: ScoutJob,
+    rootPath: string,
+  ): Promise<string> {
     const jobWorkDir = path.join(
       rootPath,
       job.namespaceId,
@@ -236,7 +239,7 @@ export class JobsService {
     );
 
     if (!existsSync(jobWorkDir)) {
-      fs.mkdir(jobWorkDir, { recursive: true });
+      await fs.mkdir(jobWorkDir, { recursive: true });
     }
 
     return jobWorkDir;
@@ -244,6 +247,7 @@ export class JobsService {
 
   private convertToContentSource(job: ScoutJob): ContentSource {
     return {
+      providerId: job.providerId,
       providerType: job.providerType,
       namespaceId: job.namespaceId,
       repositoryId: job.repositoryId,

@@ -14,6 +14,7 @@ import { HealthcheckModule } from './healthcheck/healthcheck.module';
       isGlobal: true,
       envFilePath: '.env',
       validate: validateConfig,
+      expandVariables: true,
     }),
     LoggerModule.forRootAsync({
       imports: [ConfigModule],

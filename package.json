@@ -1,6 +1,6 @@
 {
   "name": "redocly-scout",
-  "version": "0.3.8",
+  "version": "0.4.2",
   "description": "Redocly Scout is a discovery and publishing tool for APIs and documentation.",
   "author": "Redocly",
   "private": true,
@@ -21,6 +21,7 @@
     "test:e2e": "jest --config ./e2e/jest-e2e.json"
   },
   "dependencies": {
+    "@gitbeaker/rest": "^39.25.0",
     "@nestjs/axios": "^2.0.0",
     "@nestjs/common": "^9.4.3",
     "@nestjs/config": "^2.3.4",

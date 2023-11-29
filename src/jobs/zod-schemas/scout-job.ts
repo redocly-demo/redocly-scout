@@ -2,7 +2,12 @@ import { z } from 'zod';
 
 export const ScoutJobTypeSchema = z.enum(['PROCESS_GIT_REPO', 'UPDATE_STATUS']);
 
-export const GitProviderTypeSchema = z.enum(['GITHUB_CLOUD', 'GITHUB_SERVER']);
+export const GitProviderTypeSchema = z.enum([
+  'GITHUB_CLOUD',
+  'GITHUB_SERVER',
+  'GITLAB_CLOUD',
+  'GITLAB_SELF_MANAGED',
+]);
 
 export const ScoutJobStatusSchema = z.enum([
   'PENDING',
@@ -38,6 +43,7 @@ export const ScoutJobSchema = z.object({
   type: ScoutJobTypeSchema,
   organizationId: z.string(),
   portalId: z.string(),
+  providerId: z.string(),
   providerType: GitProviderTypeSchema,
   namespaceId: z.string(),
   repositoryId: z.string(),

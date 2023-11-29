@@ -1,0 +1,27 @@
+{
+  "project": {
+    "id": 1,
+    "path_with_namespace":"gitlabhq/gitlab-test",
+    "namespace":"gitlab namespace",
+    "default_branch":"master",
+    "web_url": "http://gitlab.com/gitlabhq/gitlab-test"
+  },
+  "repository": {
+    "homepage": "http://gitlab.com/gitlabhq/gitlab-test"
+  },
+  "object_attributes": {
+    "iid": 1,
+    "source_branch": "ms-viewport",
+    "last_commit": {
+      "id": "da1560886d4f094c3e6c9ef40349f7d38b5d27d7"
+    },
+    "action": "reopen",
+    "source": {
+      "path_with_namespace":"gitlabhq/gitlab-test",
+      "namespace":"gitlab namespace"
+    },
+    "target": {
+      "path_with_namespace":"gitlabhq/gitlab-test"
+    }
+  }
+}

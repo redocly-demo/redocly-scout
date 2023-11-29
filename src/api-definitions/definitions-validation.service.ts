@@ -58,6 +58,7 @@ export class DefinitionsValidationService {
     jobWorkDir: string,
   ) {
     const sourceDetails = {
+      providerId: job.providerId,
       providerType: job.providerType,
       namespaceId: job.namespaceId,
       repositoryId: job.repositoryId,
@@ -88,6 +89,7 @@ export class DefinitionsValidationService {
   async publishValidationStartedStatus(job: ScoutJob) {
     const { repositoryId, namespaceId, branch, commitSha } = job;
     const sourceDetails = {
+      providerId: job.providerId,
       providerType: job.providerType,
       namespaceId: namespaceId,
       repositoryId: repositoryId,

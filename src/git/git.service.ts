@@ -7,7 +7,7 @@ import { CommitDetails } from '../remotes/types';
 import { GitAdaptersFactory } from './adapters/git-adapters-factory';
 import { RetryOnFail } from '../common/decorators/retry-on-fail.decorator';
 import { ConfigService } from '@nestjs/config';
-import { ConfigSchema } from '../config';
+import { ConfigSchema, GithubConfigSchema } from '../config';
 
 @Injectable()
 export class GitService {
@@ -130,11 +130,26 @@ export class GitService {
   }
 
   public async checkConnectivity() {
-    const serverUrl = this.config.get('GITHUB_SERVER_URL');
-    const provider: GitProvider = serverUrl ? 'GITHUB_SERVER' : 'GITHUB_CLOUD';
-    const gitAdapter = this.gitAdaptersFactory.getAdapter(provider);
+    const githubProviders =
+      this.config.getOrThrow<GithubConfigSchema[]>('GITHUB_PROVIDERS');
 
-    return await gitAdapter.checkConnectivity();
+    for (const { appId, url } of githubProviders) {
+      const provider: GitProvider = url ? 'GITHUB_SERVER' : 'GITHUB_CLOUD';
+      const gitAdapter = this.gitAdaptersFactory.getAdapter(provider);
+
+      await gitAdapter.checkConnectivity(appId);
+    }
+
+    const Legacy_githubAppId = this.config.get('GITHUB_APP_ID');
+    if (Legacy_githubAppId) {
+      const Legacy_githubServerUrl = this.config.get('GITHUB_SERVER_URL');
+      const provider: GitProvider = Legacy_githubServerUrl
+        ? 'GITHUB_SERVER'
+        : 'GITHUB_CLOUD';
+      const gitAdapter = this.gitAdaptersFactory.getAdapter(provider);
+
+      await gitAdapter.checkConnectivity(Legacy_githubServerUrl);
+    }
   }
 
   public async getSummaryComment(

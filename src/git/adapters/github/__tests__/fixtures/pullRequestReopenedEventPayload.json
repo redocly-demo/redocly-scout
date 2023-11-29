@@ -13,7 +13,16 @@
     "number": 1,
     "head": {
       "ref": "chore/test",
-      "sha": "dd2c301ac65043128a66fb5b657feebf83778e8048f3af2be80bd20f27df8786"
+      "sha": "dd2c301ac65043128a66fb5b657feebf83778e8048f3af2be80bd20f27df8786",
+      "repo": {
+        "full_name": "headRepoFullName"
+      },
+      "label": "chore:test"
+    },
+    "base": {
+      "repo": {
+        "full_name": "baseRepoFullName"
+      }
     }
   },
   "installation": {

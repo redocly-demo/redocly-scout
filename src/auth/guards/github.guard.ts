@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   Injectable,
@@ -8,11 +9,29 @@ import type { Request } from 'express';
 import { Observable } from 'rxjs';
 import { createHmac } from 'crypto';
 import { ConfigService } from '@nestjs/config';
-import { ConfigSchema } from '../../config';
+import { ConfigSchema, GithubConfigSchema } from '../../config';
 
 @Injectable()
 export class GithubGuard implements CanActivate {
   constructor(private config: ConfigService<ConfigSchema>) {}
+
+  private getWebhookSecret(providerId: string): string {
+    const providers =
+      this.config.getOrThrow<GithubConfigSchema[]>('GITHUB_PROVIDERS');
+
+    const provider = providers.find(({ appId }) => appId === providerId);
+
+    if (provider) {
+      return provider.webhookSecret;
+    }
+
+    const Legacy_githubAppId = this.config.get('GITHUB_APP_ID');
+    if (Legacy_githubAppId === providerId) {
+      return this.config.getOrThrow('GITHUB_WEBHOOK_SECRET');
+    }
+
+    throw new BadRequestException(`Invalid GitHub appId: ${providerId}`);
+  }
 
   canActivate(
     context: ExecutionContext,
@@ -28,8 +47,16 @@ export class GithubGuard implements CanActivate {
       );
     }
 
+    const appId = request.header('x-github-hook-installation-target-id');
+
+    if (!appId) {
+      throw new UnauthorizedException(
+        `The request doesn't contain a GitHub appId`,
+      );
+    }
+
     // generate digest using webhook secret and request payload
-    const secret = this.config.getOrThrow('GITHUB_WEBHOOK_SECRET');
+    const secret = this.getWebhookSecret(appId);
     const payload = JSON.stringify(request.body);
     const hmac = createHmac('sha256', secret);
     const digest = `sha256=${hmac.update(payload).digest('hex')}`;

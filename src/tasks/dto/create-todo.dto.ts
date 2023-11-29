@@ -7,6 +7,7 @@ import {
 const ProcessGitRepoJobSchema = z
   .object({
     type: ScoutJobTypeSchema.extract(['PROCESS_GIT_REPO']),
+    providerId: z.string(),
     providerType: GitProviderTypeSchema,
     namespaceId: z.string(),
     repositoryId: z.string(),

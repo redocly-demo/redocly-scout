@@ -33,6 +33,7 @@ export class TasksService {
     const task: ProcessGitRepoTodoType = {
       type: 'PROCESS_GIT_REPO',
       namespaceId: webhook.source.namespaceId,
+      providerId: webhook.source.providerId,
       providerType: webhook.source.providerType,
       repositoryId: webhook.source.repositoryId,
       branch: webhook.source.branchName,

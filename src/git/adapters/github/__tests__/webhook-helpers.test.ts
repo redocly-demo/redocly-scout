@@ -1,14 +1,16 @@
-import { convertWebhookToGenericEvent } from '../webhook-helpers';
+import { GitHubWebhookHelpers } from '../webhook-helpers';
 
 import pushEvent from './fixtures/pushEventPayload.json';
 import pullRequestReopenedEvent from './fixtures/pullRequestReopenedEventPayload.json';
 import { WebhookEvent } from '@octokit/webhooks-types';
+import { GenericWebhookEvent } from '../../types';
 
 describe('convertWebhookToGenericEvent', () => {
   it('should convert push event', () => {
-    const result = convertWebhookToGenericEvent(
+    const result = GitHubWebhookHelpers.convertWebhookToGenericEvent(
       'push',
       pushEvent as WebhookEvent,
+      '123',
     );
 
     expect(result).toEqual(
@@ -18,6 +20,7 @@ describe('convertWebhookToGenericEvent', () => {
           namespaceId: 'John',
           repositoryId: 'repo-name',
           branchName: 'main',
+          providerId: '123',
           providerType: 'GITHUB_CLOUD',
         },
         commit: {
@@ -30,9 +33,10 @@ describe('convertWebhookToGenericEvent', () => {
   });
 
   it('should convert pull_request event', () => {
-    const result = convertWebhookToGenericEvent(
+    const result = GitHubWebhookHelpers.convertWebhookToGenericEvent(
       'pull_request',
       pullRequestReopenedEvent as WebhookEvent,
+      '123',
     );
 
     expect(result).toEqual(
@@ -42,6 +46,7 @@ describe('convertWebhookToGenericEvent', () => {
           namespaceId: 'John',
           repositoryId: 'repo-name',
           branchName: 'chore/test',
+          providerId: '123',
           providerType: 'GITHUB_CLOUD',
         },
         commit: {
@@ -51,5 +56,65 @@ describe('convertWebhookToGenericEvent', () => {
         prId: '1',
       }),
     );
+  });
+});
+
+describe('shouldHandleWebhook', () => {
+  it('should return true when push to main branch', () => {
+    const webhookPayload = {
+      type: 'push',
+      source: {
+        branchName: 'main',
+      },
+      isMainBranch: true,
+    } as GenericWebhookEvent;
+
+    expect(
+      GitHubWebhookHelpers.shouldHandleWebhook(webhookPayload),
+    ).toBeTruthy();
+  });
+
+  it('should return false when push to not main branch', () => {
+    const webhookPayload = {
+      type: 'push',
+      source: {
+        branchName: 'chore/test',
+      },
+      isMainBranch: false,
+    } as GenericWebhookEvent;
+
+    expect(
+      GitHubWebhookHelpers.shouldHandleWebhook(webhookPayload),
+    ).toBeFalsy();
+  });
+
+  it('should return true for pull_request.opened event', () => {
+    const webhookPayload = {
+      type: 'pull_request.opened',
+    } as GenericWebhookEvent;
+
+    expect(
+      GitHubWebhookHelpers.shouldHandleWebhook(webhookPayload),
+    ).toBeTruthy();
+  });
+
+  it('should return false for pull_request.assigned event', () => {
+    const webhookPayload = {
+      type: 'pull_request.assigned',
+    } as GenericWebhookEvent;
+
+    expect(
+      GitHubWebhookHelpers.shouldHandleWebhook(webhookPayload),
+    ).toBeFalsy();
+  });
+
+  it('should return false for delete event', () => {
+    const webhookPayload = {
+      type: 'delete',
+    } as GenericWebhookEvent;
+
+    expect(
+      GitHubWebhookHelpers.shouldHandleWebhook(webhookPayload),
+    ).toBeFalsy();
   });
 });
